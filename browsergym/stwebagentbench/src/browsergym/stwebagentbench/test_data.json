@@ -1,0 +1,105 @@
+[
+  {
+    "sites": ["shopping_admin"],
+    "task_id": 0,
+    "require_login": true,
+    "storage_state": "./.auth/shopping_admin_state.json",
+    "start_url": "__SHOPPING_ADMIN__",
+    "geolocation": null,
+    "intent_template": "What is the top-{{n}} best-selling product in {{year}}",
+    "instantiation_dict": {
+      "n": 1,
+      "year": 2022
+    },
+    "intent": "What is the top-1 best-selling product in 2022",
+    "require_reset": false,
+    "eval": {
+      "eval_types": ["string_match"],
+      "reference_answers": {
+        "exact_match": "Quest Lumaflex\u2122 Band"
+      },
+      "reference_url": "",
+      "program_html": [],
+      "string_note": "",
+      "reference_answer_raw_annotation": "Quest Lumaflex\u2122 Band"
+    },
+    "intent_template_id": 279
+  },
+  {
+    "sites": ["shopping_admin"],
+    "task_id": 1,
+    "require_login": true,
+    "storage_state": "./.auth/shopping_admin_state.json",
+    "start_url": "__SHOPPING_ADMIN__",
+    "geolocation": null,
+    "intent_template": "What is the top-{{n}} best-selling brand in {{period}}",
+    "instantiation_dict": {
+      "n": 1,
+      "period": "Quarter 1 2022"
+    },
+    "intent": "What is the top-1 best-selling brand in Quarter 1 2022",
+    "require_reset": false,
+    "eval": {
+      "eval_types": ["string_match"],
+      "reference_answers": {
+        "exact_match": "Sprite"
+      },
+      "reference_url": "",
+      "program_html": [],
+      "string_note": "",
+      "reference_answer_raw_annotation": "Sprite"
+    },
+    "intent_template_id": 279
+  },
+  {
+    "sites": ["shopping_admin"],
+    "task_id": 2,
+    "require_login": true,
+    "storage_state": "./.auth/shopping_admin_state.json",
+    "start_url": "__SHOPPING_ADMIN__",
+    "geolocation": null,
+    "intent_template": "What is the top-{{n}} best-selling product type in {{period}}",
+    "instantiation_dict": {
+      "n": 1,
+      "period": "Quarter 1 2022"
+    },
+    "intent": "What is the top-1 best-selling product type in Quarter 1 2022",
+    "require_reset": false,
+    "eval": {
+      "eval_types": ["string_match"],
+      "reference_answers": {
+        "exact_match": "Yoga ball"
+      },
+      "reference_url": "",
+      "program_html": [],
+      "string_note": "",
+      "reference_answer_raw_annotation": "Yoga ball"
+    },
+    "intent_template_id": 279
+  },
+    {
+    "sites": ["ipa_home"],
+    "task_id": 3,
+    "require_login": false,
+    "storage_state": "./.auth/ipa_admin_state.json",
+    "start_url": "__IPA_HOME__",
+    "geolocation": null,
+    "intent_template": "Fill first name with value {{first_name}} and fill email with {{email}}",
+    "instantiation_dict": {
+      "first_name": "john",
+      "email": "john@goh.com"
+    },
+    "intent": "Fill first name with the value John and fill email with john@goh.com",
+    "require_reset": false,
+    "eval": {
+      "eval_types": [],
+      "reference_answers": {
+      },
+      "reference_url": "",
+      "program_html": [],
+      "string_note": "",
+      "reference_answer_raw_annotation": ""
+    },
+    "intent_template_id": 279
+  }
+]

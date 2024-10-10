@@ -1,0 +1,3 @@
+browsergym==v0.7.0
+python-dotenv
+PyPDF2
