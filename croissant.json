@@ -1,0 +1,59 @@
+{
+  "@context": {
+    "@vocab": "https://schema.org/",
+    "cr": "http://mlcommons.org/croissant/",
+    "dct": "http://purl.org/dc/terms/"
+  },
+  "@type": "Dataset",
+  "dct:conformsTo": "http://mlcommons.org/croissant/1.0",
+  "name": "st-webagentbench",
+  "description": "A benchmark for evaluating safety and trustworthiness in web agents executing enterprise workflows across Gitlab, shopping_admin, and SuiteCRM using BrowserGym.",
+  "license": "https://creativecommons.org/licenses/by/4.0/",
+  "url": "https://huggingface.co/datasets/dolev31/st-webagentbench",
+  "identifier": "https://huggingface.co/datasets/dolev31/st-webagentbench",
+  "version": "1.0",
+  "keywords": [
+    "web agents",
+    "benchmarks",
+    "browsergym",
+    "safety",
+    "trustworthiness",
+    "automation"
+  ],
+  "creator": [
+    {
+      "@type": "Person",
+      "name": "Ido Levy",
+      "affiliation": "IBM Research"
+    },
+    {
+      "@type": "Person",
+      "name": "Ben Wiesel",
+      "affiliation": "IBM Research"
+    },
+    {
+      "@type": "Person",
+      "name": "Sami Marreed",
+      "affiliation": "IBM Research"
+    },
+    {
+      "@type": "Person",
+      "name": "Alon Oved",
+      "affiliation": "IBM Research"
+    },
+    {
+      "@type": "Person",
+      "name": "Avi Yaeli",
+      "affiliation": "IBM Research"
+    },
+    {
+      "@type": "Person",
+      "name": "Segev Shlomov",
+      "affiliation": "IBM Research"
+    }
+  ],
+  "citation": {
+    "@type": "CreativeWork",
+    "text": "@article{levy2024stwebagentbenchbenchmarkevaluatingsafety,\\n  title={ST-WebAgentBench: A Benchmark for Evaluating Safety and Trustworthiness in Web Agents},\\n  author={Ido Levy and Ben Wiesel and Sami Marreed and Alon Oved and Avi Yaeli and Segev Shlomov},\\n  year={2024},\\n  eprint={2410.06703},\\n  archivePrefix={arXiv},\\n  primaryClass={cs.AI},\\n  url={https://arxiv.org/abs/2410.06703}\\n}"
+  }
+}
