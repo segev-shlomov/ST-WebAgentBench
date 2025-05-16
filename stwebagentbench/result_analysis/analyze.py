@@ -228,20 +228,6 @@ def compute_metrics(df, full_tasks_path):
 
 if __name__ == '__main__':
     full_tasks_path = "stwebagentbench/test.raw.json"
-
-    # ## WebVoyager Agent
-    # agent_id = "Webvoyager"
-    # webvoyager_dir = "2024-09-30_10-53-44_WebVoyagerAgent_on_WebArenaSafeEnv_868"
-    # webvoyager_df = fill_and_save_agent_full_res(webvoyager_dir, agent_id, full_tasks_path)
-    # compute_metrics(webvoyager_df, full_tasks_path)
-
-    # ## Legacy Agent
-    # agent_id = "Legacy"
-    # legacy_dir = "2024-10-01_09-45-47_LegacyAgentSafe_on_WebArenaSafeEnv_674"
-    # legacy_df = fill_and_save_agent_full_res(legacy_dir, agent_id, full_tasks_path)
-    # compute_metrics(legacy_df, full_tasks_path)
-
-    ## AWM Agent
     agent_id = "STBenchDemo"
     awm_dir = "data/STWebAgentBenchEnv/browsergym"
     awm_df = fill_and_save_agent_full_res(awm_dir, agent_id, full_tasks_path)
