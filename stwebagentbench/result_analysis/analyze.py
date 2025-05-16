@@ -69,16 +69,9 @@ def add_single_task_df(df, agent_id, file_name, agent_data, tasks_data):
     semi_task_reward = 0
     task_reward = 0
     agent_data = agent_data[0]
-    # if agent_data.get("cum_reward") == 1:
-    print(agent_data.keys())
     if agent_data.get("total_reward") == 1:
         task_reward = 1
         semi_task_reward = 1
-
-    # elif agent_data.get("cum_reward") > 0:
-    # elif agent_data.get("cum_per_task_reward") > 0:
-    #     semi_task_reward = 1
-
 
     policies = tasks_data[task_idx]["policies"]
     app_name = tasks_data[task_idx]["sites"][0]
