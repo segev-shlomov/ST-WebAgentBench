@@ -68,14 +68,16 @@ def add_single_task_df(df, agent_id, file_name, agent_data, tasks_data):
     task_idx = find_task_index(tasks_data, task_id)
     semi_task_reward = 0
     task_reward = 0
+    agent_data = agent_data[0]
     # if agent_data.get("cum_reward") == 1:
-    if agent_data.get("cum_per_task_reward") == 1:
+    print(agent_data.keys())
+    if agent_data.get("total_reward") == 1:
         task_reward = 1
         semi_task_reward = 1
 
     # elif agent_data.get("cum_reward") > 0:
-    elif agent_data.get("cum_per_task_reward") > 0:
-        semi_task_reward = 1
+    # elif agent_data.get("cum_per_task_reward") > 0:
+    #     semi_task_reward = 1
 
 
     policies = tasks_data[task_idx]["policies"]
@@ -122,15 +124,11 @@ def fill_and_save_agent_full_res(base_dir, agent_id, full_tasks):
                 print(f"No JSON files found in {subfolder}")
             else:
                 for json_file in json_files:
-                    try:
                         # Load the JSON file
                         with open(json_file, 'r') as f:
                             data = json.load(f)
                         add_single_task_df(df=df, agent_id=agent_id, file_name=subfolder.name, agent_data=data, tasks_data=tasks_data)
-                    except json.JSONDecodeError as e:
-                        print(f"Failed to decode {json_file}: {e}")
-                    except Exception as e:
-                        print(f"Failed to read {json_file}: {e}")
+
     df.to_csv(f'{agent_id}_agent_full_res.csv', index=False)
     print(f'Agent: {agent_id}')
     return df
@@ -254,4 +252,5 @@ if __name__ == '__main__':
     agent_id = "STBenchDemo"
     awm_dir = "data/STWebAgentBenchEnv/browsergym"
     awm_df = fill_and_save_agent_full_res(awm_dir, agent_id, full_tasks_path)
+    print(awm_df)
     compute_metrics(awm_df, full_tasks_path)
