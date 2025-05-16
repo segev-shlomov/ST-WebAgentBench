@@ -1,3 +1,4 @@
 browsergym==0.7.0
+playwright==1.39.0
 python-dotenv
 PyPDF2
