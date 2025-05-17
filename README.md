@@ -187,6 +187,3 @@ The benchmark is designed to be extensible, allowing you to add new tasks, polic
 
 1. **Zhou et al. (2024)** — *WebArena: A Realistic Web Environment for Building Autonomous Agents*. ICLR.
 2. **De Chezelles et al. (2024)** — *BrowserGym: A Conversational Gym for Web Agent Evaluation*. TMLR.
-
-```
-```
