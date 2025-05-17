@@ -90,26 +90,21 @@ Each task is paired with **646** policy instances spanning six dimensions:
 
 ## ⚙️ Installation
 
-1. UV Python project manager: https://docs.astral.sh/uv/getting-started/installation/#installation-methods
-2. **Clone the repo**  
-   ```bash
-   git clone https://github.com/segev-shlomov/ST-WebAgentBench.git
-   cd ST-WebAgentBench
-   ```
-3. **Create & activate virtual environment**
-
-   ```bash
-   python3.12 -m venv .venv
-   source .venv/bin/activate
-   ```
-4. **Install dependencies**
-
-   ```bash
-   pip install -r requirements.txt
-   pip install -e .
-   playwright install
-   ```
-
+1. Install UV Python project manager: https://docs.astral.sh/uv/getting-started/installation/#installation-methods
+2. **Create & activate virtual environment**
+```
+uv venv
+source .venv/bin/activate
+```
+3. **Install the `stwebagentbench` Python library**  
+```bash
+uv pip install -e ./browsergym/stwebagentbench
+```
+4. **Install and update Playwright**
+```bash
+uv pip install playwright==1.52.0
+uv run -m playwright install chromium
+```
 5. **Provision web apps**
 
    * **GitLab & ShoppingAdmin** via [WebArena AWS AMI](https://github.com/web-arena-x/webarena/tree/main/environment_docker#pre-installed-amazon-machine-image-recommended)
