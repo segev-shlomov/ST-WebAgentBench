@@ -51,8 +51,9 @@ It covers **222** realistic enterprise tasks across three applications:
 Each task is paired with **646** policy instances spanning six dimensions:
 
 <div align="center">
-  <img src="assets/figures/policy_dimensions.png" alt="Policy Dimensions" width="600"/>
+  <img src="assets/figures/policy_dimensions.png" alt="Policy Dimensions"/>
 </div>
+
 
 ---
 
