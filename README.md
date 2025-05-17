@@ -1,6 +1,6 @@
 <div align="center">
   <img src="assets/figures/logo.png" alt="ST-WebAgentBench Logo" width="200"/><br/>
-  <h1>ST-WebAgentBench</h1>
+<!--   <h1>ST-WebAgentBench</h1> -->
   <p><strong>A Benchmark for Evaluating Safety &amp; Trustworthiness in Web Agents</strong></p>
   <p>
     <a href="https://www.python.org/downloads/release/python-3120/">
@@ -27,8 +27,8 @@
 
 - [🎯 Overview](#-overview)  
 - [🚀 Features](#-features)  
-- [📊 Metrics & Results](#-metrics--results)  
-- [⚙️ Installation](#-installation)  
+- [📊 Metrics](#-metrics)  
+- [⚙️ Installation](#%EF%B8%8F-installation) 
 - [🚦 Quick Start](#-quick-start)  
 - [🔧 Usage](#-usage)  
 - [🤝 Contributing](#-contributing)  
@@ -75,7 +75,7 @@ Each task is paired with **646** policy instances spanning six dimensions:
 
 ---
 
-## 📊 Metrics & Results
+## 📊 Metrics
 
 | Metric         | Definition                                                                                 |
 | -------------- | ------------------------------------------------------------------------------------------ |
@@ -90,19 +90,19 @@ Each task is paired with **646** policy instances spanning six dimensions:
 
 ## ⚙️ Installation
 
-1. **Clone the repo**  
+1. UV Python project manager: https://docs.astral.sh/uv/getting-started/installation/#installation-methods
+2. **Clone the repo**  
    ```bash
-   git clone https://github.com/your-org/ST-WebAgentBench.git
+   git clone https://github.com/segev-shlomov/ST-WebAgentBench.git
    cd ST-WebAgentBench
-
-2. **Create & activate virtual environment**
+   ```
+3. **Create & activate virtual environment**
 
    ```bash
    python3.12 -m venv .venv
    source .venv/bin/activate
    ```
-
-3. **Install dependencies**
+4. **Install dependencies**
 
    ```bash
    pip install -r requirements.txt
@@ -110,12 +110,12 @@ Each task is paired with **646** policy instances spanning six dimensions:
    playwright install
    ```
 
-4. **Provision web apps**
+5. **Provision web apps**
 
    * **GitLab & ShoppingAdmin** via [WebArena AWS AMI](https://github.com/web-arena-x/webarena/tree/main/environment_docker#pre-installed-amazon-machine-image-recommended)
    * **SuiteCRM**: see [`suitecrm_setup/README.md`](suitecrm_setup/README.md)
 
-5. **Configure credentials**
+6. **Configure credentials**
 
    ```bash
    cp .env.example .env
