@@ -15,6 +15,9 @@
 <a href="https://huggingface.co/datasets/dolev31/st-webagentbench">
   <img src="https://img.shields.io/badge/HuggingFace-Dataset-orange?logo=huggingface&logoColor=FFD21F&labelColor=555" alt="Hugging Face Dataset"/>
 </a>
+    <a href="https://github.com/segev-shlomov/ST-WebAgentBench">
+      <img src="https://img.shields.io/badge/GitHub-Repo-black?logo=github&logoColor=white&labelColor=555" alt="GitHub Repository"/>
+    </a>
 
 
 
