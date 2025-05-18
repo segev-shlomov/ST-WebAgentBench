@@ -1,34 +1,35 @@
 <div align="center">
-  <img src="assets/figures/logo.png" alt="ST-WebAgentBench Logo" width="200"/><br/>
-  <!-- <h1>ST-WebAgentBench</h1> -->
+  <img src="assets/figures/logo.png" alt="ST-WebAgentBench Logo" width="180" style="margin-bottom: 20px;">
+<!--   <h1>ST-WebAgentBench</h1> -->
   <p><strong>A Benchmark for Evaluating Safety &amp; Trustworthiness in Web Agents</strong></p>
-  <p>
+  <div>
+    <!-- Python Badge -->
     <a href="https://www.python.org/downloads/release/python-3120/">
-      <img src="https://img.shields.io/badge/python-3.12-blue.svg" alt="Python 3.12"/>
+      <img src="https://img.shields.io/badge/Python-3.12-%233776AB?style=for-the-badge&logo=python&logoColor=white&labelColor=306998" alt="Python 3.12"/>
     </a>
+    &nbsp;
+    <!-- Website Badge -->
     <a href="https://sites.google.com/view/st-webagentbench/home">
-      <img src="https://img.shields.io/badge/Website-Live-green.svg" alt="Project Website"/>
+      <img src="https://img.shields.io/badge/Website-Live-%238E44AD?style=for-the-badge&logo=googlechrome&logoColor=white&labelColor=663399" alt="Project Website"/>
     </a>
+    &nbsp;
+    <!-- arXiv Badge -->
     <a href="https://arxiv.org/abs/2410.06703">
-      <img src="https://img.shields.io/badge/arXiv-2410.06703-B31B1B.svg" alt="arXiv Paper"/>
+      <img src="https://img.shields.io/badge/arXiv-2410.06703-%23B31B1B?style=for-the-badge&logo=arxiv&logoColor=white&labelColor=8A1111" alt="arXiv Paper"/>
     </a>
-<a href="https://huggingface.co/datasets/dolev31/st-webagentbench">
-  <img src="https://img.shields.io/badge/HuggingFace-Dataset-orange?logo=huggingface&logoColor=FFD21F&labelColor=555" alt="Hugging Face Dataset"/>
-</a>
+    <br>
+    <!-- Hugging Face Badge -->
+    <a href="https://huggingface.co/datasets/dolev31/st-webagentbench">
+      <img src="https://img.shields.io/badge/HuggingFace-Dataset-%23FFD43B?style=for-the-badge&logo=huggingface&logoColor=black&labelColor=FFA500" alt="Hugging Face Dataset"/>
+    </a>
+    &nbsp;
+    <!-- GitHub Badge -->
     <a href="https://github.com/segev-shlomov/ST-WebAgentBench">
-      <img src="https://img.shields.io/badge/GitHub-Repo-black?logo=github&logoColor=white&labelColor=555" alt="GitHub Repository"/>
+      <img src="https://img.shields.io/badge/GitHub-Repository-%23181717?style=for-the-badge&logo=github&logoColor=white&labelColor=0D1117" alt="GitHub Repository"/>
     </a>
-
-
-
-
-[//]: # (    <a href="LICENSE">)
-
-[//]: # (      <img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" alt="Apache-2.0"/>)
-
-[//]: # (    </a>)
-  </p>
+  </div>
 </div>
+<!-- You can add your additional content below this line -->
 
 ---
 
