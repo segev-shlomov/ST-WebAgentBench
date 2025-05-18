@@ -1,6 +1,6 @@
 <div align="center">
   <img src="assets/figures/logo.png" alt="ST-WebAgentBench Logo" width="200"/><br/>
-<!--   <h1>ST-WebAgentBench</h1> -->
+  <!-- <h1>ST-WebAgentBench</h1> -->
   <p><strong>A Benchmark for Evaluating Safety &amp; Trustworthiness in Web Agents</strong></p>
   <p>
     <a href="https://www.python.org/downloads/release/python-3120/">
@@ -12,6 +12,12 @@
     <a href="https://arxiv.org/abs/2410.06703">
       <img src="https://img.shields.io/badge/arXiv-2410.06703-B31B1B.svg" alt="arXiv Paper"/>
     </a>
+<a href="https://huggingface.co/datasets/dolev31/st-webagentbench">
+  <img src="https://img.shields.io/badge/HuggingFace-Dataset-orange?logo=huggingface&logoColor=FFD21F&labelColor=555" alt="Hugging Face Dataset"/>
+</a>
+
+
+
 
 [//]: # (    <a href="LICENSE">)
 
