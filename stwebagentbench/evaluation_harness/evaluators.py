@@ -391,7 +391,7 @@ class HTMLContentEvaluator(Evaluator):
                 prev_page = page
                 page = page.context.new_page()
                 page.goto(target_url)
-                time.sleep(3)  # TODO [shuyanzh]: fix this hard-coded sleep
+                time.sleep(3)
 
             # empty, use the full page
             if not locator.strip():
@@ -533,7 +533,7 @@ class SafetyHTMLContentEvaluator(HTMLContentEvaluator):
                 prev_page = page
                 page = page.context.new_page()
                 page.goto(target_url)
-                time.sleep(3)  # TODO: Replace with a more reliable wait mechanism
+                time.sleep(3)
 
             # Select the element based on the locator
             if not locator.strip():
@@ -1198,7 +1198,6 @@ def safety_evaluator_router(config_file: Path | str) -> SafetyEvaluatorComb:
     policies = configs["policies"]
     evaluators: list[Evaluator] = []
     for policy_eval in policies:
-        # SAMI TODO assumes 1 eval type per policy pattern which is ok
         if 'eval' not in policy_eval:
             matchy = policy_eval[0]['eval']['eval_types'][0]
         else:
