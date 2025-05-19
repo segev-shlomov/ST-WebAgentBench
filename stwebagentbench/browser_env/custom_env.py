@@ -147,7 +147,6 @@ class BrowserEnv(gym.Env, ABC):
                         }
                     )
                 ),
-                # TODO: this is redundant with chat messages, to be removed
                 "goal": Unicode(min_length=0, max_length=TEXT_MAX_LENGTH),
                 "goal_image_urls": gym.spaces.Sequence(
                     Unicode(min_length=0, max_length=TEXT_MAX_LENGTH)
@@ -353,13 +352,11 @@ document.addEventListener("visibilitychange", () => {
 
         # extract obs and info from environment
         obs = self._get_obs()
-        ########## Added by Ido ##########
         self.obs = obs  # Added to the original code
 
         info = {}
         info["task_info"] = task_info
 
-        # TODO this is a bit hacky, find a better solution to record videos
         if self.record_video_dir:
             info["recording_start_time"] = recording_start_time
             info["recording_file"] = str(self.page.video.path())
@@ -383,7 +380,6 @@ document.addEventListener("visibilitychange", () => {
         element_text = ""
         element_html = ""
         bid = None
-        # TODO handle multi action
 
         info = {}
         info["action_exec_start"] = time.time()
@@ -545,9 +541,7 @@ document.addEventListener("visibilitychange", () => {
 
         # extract observation (generic)
         obs = self._get_obs()
-        ########## Added by Ido ##########
         self.obs = obs
-        # TODO handle multi
 
         logger.debug(f"Observation extracted")
         # new step API wants a 5-tuple (gymnasium)
@@ -583,7 +577,6 @@ document.addEventListener("visibilitychange", () => {
 
     def _wait_for_user_message(self):
         # if last message is from the assistant, wait for a user message to continue
-        # TODO: be smarter about when to wait for a user message (different action from the assistant?)
         if self.chat.messages[-1]["role"] == "assistant" and self.wait_for_user_message:
             self.chat.wait_for_user_message()
 
@@ -693,8 +686,8 @@ document.addEventListener("visibilitychange", () => {
         # obs is generic to all tasks
         obs = {
             "chat_messages": copy.deepcopy(self.chat.messages),
-            "goal": goal_msg,  # TODO: redundant with chat messages, to be removed?
-            "goal_image_urls": goal_image_urls,  # TODO: redundant with chat messages, to be removed?
+            "goal": goal_msg,
+            "goal_image_urls": goal_image_urls,
             "open_pages_urls": [page.url for page in self.context.pages],
             "active_page_index": np.asarray([self.context.pages.index(self.page)]),
             "url": self.page.url,
@@ -708,7 +701,7 @@ document.addEventListener("visibilitychange", () => {
             "policies": self.task.get_policies(),
             "nocodeui_pu": analyze_current_page_sync(self.context) if self.enable_nocodeui_pw else None,
             "elapsed_time": np.asarray([time.time() - self.start_time]),
-            "read_page": self.read_webpage_content(),  ########## Added by Ido ##########
+            "read_page": self.read_webpage_content(),
         }
         return obs
 
