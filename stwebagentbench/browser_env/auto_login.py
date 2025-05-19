@@ -115,7 +115,6 @@ def main(auth_folder: str = "./.auth") -> None:
     max_workers = 8
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         for pair in pairs:
-            # TODO[shuyanzh] auth don't work on these two sites
             if "reddit" in pair and (
                 "shopping" in pair or "shopping_admin" in pair
             ):
