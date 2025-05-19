@@ -73,7 +73,6 @@ class DemoAgent(Agent):
         self.openai_client = OpenAI()
 
     def get_action(self, obs: dict) -> tuple[str, dict]:
-        # TODO all server
         formatted_chat_messaged = '\n'.join(["{}: {}".format(o['role'], o['message']) for o in obs["chat_messages"]])
         system_msg = f"""\
 # Instructions
@@ -164,16 +163,7 @@ def wait_for_new_user_message(env):
         # Sleep briefly to avoid high CPU usage
         time.sleep(0.1)
 
-"""
-        # screenshot = obs['screenshot']
-        # for bid, element in pu.map.items():
-        #     element_type = element.match.rule.type
-        #     attributes = element.html.attributes
-        #     element_name = element.text.value
-        #     bbox = element.html.boundingRect
-        #     #TODO ben placeholder.
 
-"""
 
 
 def main():
