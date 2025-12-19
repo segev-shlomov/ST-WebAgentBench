@@ -132,39 +132,120 @@ uv run -m playwright install chromium
 
 ## 🚦 Quick Start
 
-Run a single demo task (SuiteCRM example):
+### Running a Single Demo Task
+
+Test with a single SuiteCRM task:
 
 ```bash
-uv run st_bench_example.py
+python st_bench_example.py
 ```
 
-Batch-run all tasks & aggregate metrics:
+### Running the Full Benchmark
+
+**1. Run predictions for a specific model:**
 
 ```bash
-uv run st_bench_example_loop.py
-uv run stwebagentbench/result_analysis/analyze.py
+# Using OpenAI models
+python st_bench_example_loop.py --model_name openai/gpt-4o-mini --headless true
+
+# Using OpenRouter models (e.g., Gemini, Claude, etc.)
+python st_bench_example_loop.py --model_name google/gemini-2.0-flash-001 --headless true
+
+# Run specific task range
+python st_bench_example_loop.py --model_name openai/gpt-4o-mini --specific_tasks_range "0-10" --headless true
+
+# Disable multi-actions mode
+python st_bench_example_loop.py --model_name openai/gpt-4o-mini --multi_actions false --headless true
 ```
+
+**Available command-line options:**
+- `--model_name`: Model identifier (prefix with `openai/` for OpenAI models, otherwise uses OpenRouter)
+- `--headless`: Run browser in headless mode (`true` or `false`, default: `true`)
+- `--specific_tasks_range`: Run specific task range (e.g., `"0-10"` or `"52-235"`)
+- `--multi_actions`: Enable/disable multi-action mode (`true` or `false`, default: `true`)
+- `--max_steps`: Maximum steps per task (default: `100`)
+
+**2. Evaluate results and compute metrics:**
+
+After running predictions, evaluate the results:
+
+```bash
+python stwebagentbench/result_analysis/analyze.py
+```
+
+This generates:
+- `STBenchDemo_agent_full_res.csv`: Detailed per-task results with policy violations
+- `STBenchDemo_agent_res_summary.csv`: Aggregated metrics including:
+  - **Completion Rate (CR)**: Percentage of tasks successfully completed
+  - **CuP (Completion under Policy)**: Percentage of tasks completed without policy violations
+  - **Risk Ratio**: Policy violation rates by category (boundary, consent, exact_task)
+
+**Understanding the output:**
+
+The evaluation will show:
+```
+Semi Completion Rate: 0.421
+Semi CUP Rate: 0.193
+Completion Rate: 0.421
+CUP Rate: 0.193
+```
+
+Key insight: The gap between **Completion Rate** and **CuP** reveals how many task successes violated safety policies.
 
 ---
 
 ## 🔧 Usage
 
+### Python API
+
 ```python
 import gym
 import browsergym.stwebagentbench  # registers environments
 
-env = gym.make("BrowserGymSTWebAgentBench-v0")
-obs = env.reset()
+env = gym.make("browsergym/STWebAgentBenchEnv.0", headless=True)
+obs, info = env.reset()
 done = False
 
 while not done:
-    action = env.action_space.sample()  # replace with agent logic
-    obs, reward, done, info = env.step(action)
+    action = your_agent.get_action(obs)  # replace with agent logic
+    obs, reward, terminated, truncated, info = env.step(action)
+    done = terminated or truncated
+
+# Check policy compliance
+violated_policies = info.get('safety_report', [])
+success_under_policy = reward == 1.0 and len(violated_policies) == 0
 ```
 
-* **obs** includes page DOM, screenshots, and active policy definitions.
-* **action\_space** supports browser actions plus **`ask_user`** for safe deferral.
-* **LLM Integration**: set `OPENAI_API_KEY` in `.env` and use one of the example agent controllers in `agents/`.
+### Key Components
+
+* **obs** includes:
+  - Page DOM and accessibility tree
+  - Screenshots
+  - Active policy definitions
+  - Chat history with user
+
+* **action_space** supports:
+  - Standard browser actions (click, fill, scroll, etc.)
+  - `send_msg_to_user()` for requesting user consent
+  - `answer()` to signal task completion
+
+* **info** contains:
+  - `safety_report`: List of policy violations
+  - Task-specific metadata
+
+### API Keys Setup
+
+For OpenAI models:
+```bash
+# In .env file
+OPENAI_API_KEY=your_openai_key_here
+```
+
+For OpenRouter models (Gemini, Claude, Llama, etc.):
+```bash
+# In .env file
+OPENROUTER_API_KEY=your_openrouter_key_here
+```
 
 ---
 
@@ -193,3 +274,136 @@ The benchmark is designed to be extensible, allowing you to add new tasks, polic
 
 1. **Zhou et al. (2024)** — *WebArena: A Realistic Web Environment for Building Autonomous Agents*. ICLR.
 2. **De Chezelles et al. (2024)** — *BrowserGym: A Conversational Gym for Web Agent Evaluation*. TMLR.
+
+---
+
+## 🖥️ EC2 Auto-Startup Setup for WebArena
+
+This section explains how to automatically start GitLab and Shopping Admin when your EC2 instance boots.
+
+### Prerequisites
+
+- SSH access to your EC2 instance
+- Docker already installed and running
+- GitLab and Shopping Admin containers already created
+
+### Installation Steps
+
+#### 1. Edit the startup script with your EC2 hostname
+
+Before uploading, edit `ec2_startup_script.sh` and replace `<your-server-hostname>` with your actual EC2 public hostname or IP address.
+
+For example, if your EC2 public DNS is `ec2-54-123-45-67.compute-1.amazonaws.com`:
+```bash
+SERVER_HOSTNAME="ec2-54-123-45-67.compute-1.amazonaws.com"
+```
+
+Or if using an Elastic IP like `54.123.45.67`:
+```bash
+SERVER_HOSTNAME="54.123.45.67"
+```
+
+#### 2. Copy files to your EC2 instance
+
+```bash
+# Copy the startup script
+scp ec2_startup_script.sh ubuntu@<your-ec2-hostname>:~/webarena-startup.sh
+
+# Copy the systemd service file
+scp webarena-startup.service ubuntu@<your-ec2-hostname>:~/webarena-startup.service
+```
+
+#### 3. SSH into your EC2 instance
+
+```bash
+ssh ubuntu@<your-ec2-hostname>
+```
+
+#### 4. Install the startup script
+
+```bash
+# Move the script to /usr/local/bin
+sudo mv ~/webarena-startup.sh /usr/local/bin/webarena-startup.sh
+
+# Make it executable
+sudo chmod +x /usr/local/bin/webarena-startup.sh
+```
+
+#### 5. Install the systemd service
+
+```bash
+# Move the service file to systemd directory
+sudo mv ~/webarena-startup.service /etc/systemd/system/webarena-startup.service
+
+# Reload systemd to recognize the new service
+sudo systemctl daemon-reload
+
+# Enable the service to run on boot
+sudo systemctl enable webarena-startup.service
+```
+
+#### 6. Test the service (optional)
+
+Test that the service works without rebooting:
+
+```bash
+# Stop the containers first
+docker stop gitlab shopping_admin
+
+# Start the service manually
+sudo systemctl start webarena-startup.service
+
+# Check the status
+sudo systemctl status webarena-startup.service
+
+# View the logs
+sudo tail -f /var/log/webarena-startup.log
+```
+
+#### 7. Verify auto-start on reboot
+
+```bash
+# Reboot your EC2 instance
+sudo reboot
+```
+
+After the instance comes back online (wait ~2-3 minutes), SSH back in and check:
+
+```bash
+# Check if containers are running
+docker ps | grep -E "(gitlab|shopping_admin)"
+
+# Check the startup log
+sudo tail -n 50 /var/log/webarena-startup.log
+
+# Test the endpoints
+curl -I http://localhost:8023  # GitLab
+curl -I http://localhost:7780  # Shopping Admin
+```
+
+### Troubleshooting
+
+**View startup logs:**
+```bash
+sudo tail -f /var/log/webarena-startup.log
+```
+
+**Check service status:**
+```bash
+sudo systemctl status webarena-startup.service
+```
+
+**View systemd journal:**
+```bash
+sudo journalctl -u webarena-startup.service -f
+```
+
+**Disable auto-start (if needed):**
+```bash
+sudo systemctl disable webarena-startup.service
+```
+
+**Manually run the script:**
+```bash
+sudo /usr/local/bin/webarena-startup.sh
+```

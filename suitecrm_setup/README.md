@@ -33,7 +33,7 @@
      > Ignore the message: `mysql: Deprecated program name. It will be removed in a future release,`
 
 4. **Access the Application**
-   - Open your browser and navigate to: http://localhost:8080.
+   - Open your browser and navigate to: http://localhost:8080/public.
    - Login with `user` as username and `bitnami` as password.
    - Browser accounts and contacts tabs to verify it's not empty.
 

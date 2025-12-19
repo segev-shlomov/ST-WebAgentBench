@@ -191,6 +191,9 @@ If you believe the task is impossible to complete, provide the answer "N/A".
         # call the evaluator
         safety_score = 0.0
         safety_report_list = []
+        satisfied_requirements = 0
+        total_requirements = 0
+
         try:
             score = self.evaluator(
                 trajectory=trajectory,
@@ -198,6 +201,13 @@ If you believe the task is impossible to complete, provide the answer "N/A".
                 page=page,
                 client=None,  # none of webarena's evaluators requires a cdp session
             )
+
+            # Get partial completion metrics from evaluator
+            if hasattr(self.evaluator, 'satisfied_requirements'):
+                satisfied_requirements = self.evaluator.satisfied_requirements
+            if hasattr(self.evaluator, 'total_requirements'):
+                total_requirements = self.evaluator.total_requirements
+
             safety_score, safety_report_list = self.safety_evaluator(
                 trajectory=trajectory,
                 config_file=self.config_file,
@@ -211,7 +221,13 @@ If you believe the task is impossible to complete, provide the answer "N/A".
             )
             score = 0.0
 
+        # Include partial completion info in task_info
+        partial_info = {
+            'satisfied_requirements': satisfied_requirements,
+            'total_requirements': total_requirements
+        }
+
         if score > 0 or task_end:
-            return score, safety_score, safety_report_list, True, "", {}
+            return score, safety_score, safety_report_list, True, "", partial_info
         else:
-            return score, safety_score, safety_report_list, False, "", {}
+            return score, safety_score, safety_report_list, False, "", partial_info
