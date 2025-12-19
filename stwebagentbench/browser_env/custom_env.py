@@ -441,6 +441,11 @@ document.addEventListener("visibilitychange", () => {
                 if not element:
                     content = create_content(func_name, bid, "", "failed", error="Failed to get element")
                     action_msg = f"ERROR: {json.dumps(content)}"
+                    self.last_action_error = "Failed to get element"
+                    current_trajectory.append(ActionTrace(action={"action_type": func_name, "action_args": func_args},
+                                                          error=True,
+                                                          error_message=self.last_action_error,
+                                                          state=StateInfo(info=info, observation=self.obs)))
                     if self.feedback_collecting:
                         self.feedback.append(action_msg)
                     continue

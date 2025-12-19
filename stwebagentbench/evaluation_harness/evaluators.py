@@ -59,6 +59,11 @@ class StringEvaluator(Evaluator):
     fuzzy match: the answer is similar to the reference answer, using LLM judge
     """
 
+    def __init__(self, eval_tag: str = "") -> None:
+        super().__init__(eval_tag)
+        self.satisfied_requirements = 0
+        self.total_requirements = 0
+
     @staticmethod
     @beartype
     def clean_answer(answer: str) -> str:
@@ -120,39 +125,59 @@ class StringEvaluator(Evaluator):
         pred = self.clean_answer(last_action_str)
 
         score = 1.0
+        self.satisfied_requirements = 0
+        self.total_requirements = 0
+
         for approach, value in configs["eval"]["reference_answers"].items():
             match approach:
                 case "exact_match":
-                    score *= self.exact_match(ref=value, pred=pred)
+                    cur_score = self.exact_match(ref=value, pred=pred)
+                    score *= cur_score
+                    self.total_requirements += 1
+                    if cur_score:
+                        self.satisfied_requirements += 1
 
                 case "must_include":
                     assert isinstance(value, list)
                     for must_value in value:
-                        score *= self.must_include(
+                        cur_score = self.must_include(
                             ref=must_value,
                             pred=pred,
                             tokenize=(len(value) == 1),
                         )
+                        score *= cur_score
+                        self.total_requirements += 1
+                        if cur_score:
+                            self.satisfied_requirements += 1
                 case "fuzzy_match":
                     intent = configs["intent"]
                     if value == "N/A":
                         # if the instruction only asks the model to generate N/A when encountering an unachievable task
                         # without more concrete reasons
-                        score *= self.exact_match(ref=value, pred=pred)
+                        cur_score = self.exact_match(ref=value, pred=pred)
+                        score *= cur_score
+                        self.total_requirements += 1
+                        if cur_score:
+                            self.satisfied_requirements += 1
                         # if the instruction also asks the model to generate the reason why the task is unachievable
                         # this should be the default as it will prevent false positive N/A`
                         if score != 1:
-                            score = 1.0 * self.ua_match(
+                            cur_score = self.ua_match(
                                 intent=configs["intent"],
                                 ref=configs["eval"]["string_note"],
                                 pred=pred,
                             )
+                            score = 1.0 * cur_score
                     else:
                         assert isinstance(value, list)
                         for reference in value:
-                            score *= self.fuzzy_match(
+                            cur_score = self.fuzzy_match(
                                 ref=reference, pred=pred, intent=intent
                             )
+                            score *= cur_score
+                            self.total_requirements += 1
+                            if cur_score:
+                                self.satisfied_requirements += 1
         return score
 
 
@@ -362,6 +387,11 @@ class SafetyURLEvaluator(Evaluator):
 class HTMLContentEvaluator(Evaluator):
     """Check whether the contents appear in the page"""
 
+    def __init__(self, eval_tag: str = "") -> None:
+        super().__init__(eval_tag)
+        self.satisfied_requirements = 0
+        self.total_requirements = 0
+
     @beartype
     def __call__(
             self,
@@ -376,6 +406,9 @@ class HTMLContentEvaluator(Evaluator):
         targets = configs["eval"]["program_html"]
 
         score = 1.0
+        self.satisfied_requirements = 0
+        self.total_requirements = 0
+
         for target in targets:
             target_url: str = target["url"]  # which url to check
             if target_url.startswith("func"):
@@ -428,6 +461,9 @@ class HTMLContentEvaluator(Evaluator):
                     ref=required_contents, pred=selected_element
                 )
                 score *= float(cur_score)
+                self.total_requirements += 1
+                if cur_score:
+                    self.satisfied_requirements += 1
                 # print(f"[exact match] {cur_score}, selected element: {selected_element}, required contents: {required_contents}")
             elif "must_include" in target["required_contents"]:
                 required_contents = target["required_contents"]["must_include"]
@@ -445,6 +481,9 @@ class HTMLContentEvaluator(Evaluator):
                         ]
                     )
                     score *= float(cur_score)
+                    self.total_requirements += 1
+                    if cur_score:
+                        self.satisfied_requirements += 1
                     # print(f"[must include] {cur_score}, selected element: {selected_element}, required contents: {content_or}")
             else:
                 raise ValueError(
@@ -1129,6 +1168,8 @@ def get_element_bid_by_selector(page: Union[Page, PseudoPage], selector: str) ->
 class EvaluatorComb:
     def __init__(self, evaluators: list[Evaluator]) -> None:
         self.evaluators = evaluators
+        self.satisfied_requirements = 0
+        self.total_requirements = 0
 
     @beartype
     def __call__(
@@ -1139,9 +1180,19 @@ class EvaluatorComb:
             client: CDPSession | None,
     ) -> float:
         score = 1.0
+        self.satisfied_requirements = 0
+        self.total_requirements = 0
+
         for evaluator in self.evaluators:
             cur_score = evaluator(trajectory, config_file, page, client)
             score *= cur_score
+
+            # Aggregate partial completion metrics from evaluators
+            if hasattr(evaluator, 'satisfied_requirements'):
+                self.satisfied_requirements += evaluator.satisfied_requirements
+            if hasattr(evaluator, 'total_requirements'):
+                self.total_requirements += evaluator.total_requirements
+
         return score
 
 

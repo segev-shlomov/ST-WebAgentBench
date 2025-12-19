@@ -3,12 +3,16 @@ import copy
 import re
 import time
 from collections import Counter
+import warnings
 
 from dotenv import load_dotenv
 import os
 
 # Load environment variables from .env file
 load_dotenv()
+
+# Suppress beartype PEP 585 deprecation warnings from third-party libraries
+warnings.filterwarnings('ignore', category=DeprecationWarning, module='beartype')
 
 import gymnasium as gym
 
@@ -30,13 +34,13 @@ import browsergym.stwebagentbench
 send_message_to_user: callable = None
 
 
-def finish(message):
+def answer(message):
     """
     When the task is done, this function should be called
 
     Examples:
-        finish("I finished the task.")
-        finish("I finished the task, the answer is 'value'")
+        answer("I finished the task.")
+        answer("I finished the task, the answer is 'value'")
     """
     send_message_to_user(message)
 
@@ -46,8 +50,13 @@ def finish(message):
 # additional_actions = [
 #     ask_user
 # ]
-action_set = HighLevelActionSet(custom_actions=[finish], subsets=["bid", "chat", 'custom'], strict=False,
-                                multiaction=True, demo_mode='off')
+
+def get_action_set(multiaction=True):
+    return HighLevelActionSet(custom_actions=[answer], subsets=["bid", "chat", 'custom'], strict=False,
+                              multiaction=multiaction, demo_mode='off')
+
+# Default action set for backward compatibility
+action_set = get_action_set(multiaction=True)
 
 
 class DemoAgent(Agent):
@@ -67,10 +76,27 @@ class DemoAgent(Agent):
     def __init__(self, model_name) -> None:
         super().__init__()
         self.model_name = model_name
+        self.total_cost = 0.0
+        self.last_llm_output = None
 
         from openai import OpenAI
 
-        self.openai_client = OpenAI()
+        # Detect if model is from OpenAI (openai/...) or OpenRouter
+        self.is_openai = model_name.startswith('openai/')
+
+        if self.is_openai:
+            # Use OpenAI directly, strip the 'openai/' prefix
+            self.openai_client = OpenAI()
+            self.model_name = model_name.replace('openai/', '')
+        else:
+            # Use OpenRouter for all other providers
+            openrouter_api_key = os.environ.get('OPENROUTER_API_KEY')
+            if not openrouter_api_key:
+                raise ValueError("OPENROUTER_API_KEY not found in environment variables")
+            self.openai_client = OpenAI(
+                base_url="https://openrouter.ai/api/v1",
+                api_key=openrouter_api_key
+            )
 
     def get_action(self, obs: dict) -> tuple[str, dict]:
         formatted_chat_messaged = '\n'.join(["{}: {}".format(o['role'], o['message']) for o in obs["chat_messages"]])
@@ -79,7 +105,7 @@ class DemoAgent(Agent):
 Review the current state of the page and all other information to find the best
 possible next action to accomplish your goal. Your answer will be interpreted
 and executed by a program, make sure to follow the formatting instructions. you will be also given the chat history between you and user.
-When you finish the task, use the action finish.
+When you finish the task, use the action answer.
 
 # Goal:
 {obs["goal"]}"""
@@ -106,15 +132,28 @@ Always return actions with code ```.
 """
 
         # query OpenAI model
-        response = self.openai_client.chat.completions.create(
-            model=self.model_name,
-            temperature=1,
-            max_tokens=256,
-            messages=[
+        api_params = {
+            "model": self.model_name,
+            "messages": [
                 {"role": "system", "content": system_msg},
                 {"role": "user", "content": prompt},
             ],
-        )
+        }
+
+        # Add OpenAI-specific parameters and OpenRouter extra_body
+        if self.is_openai:
+            api_params["temperature"] = 1
+            api_params["max_tokens"] = 256
+        else:
+            api_params["extra_body"] = {"usage": {"include": True}}
+
+        response = self.openai_client.chat.completions.create(**api_params)
+
+        # Track cost for OpenRouter
+        if not self.is_openai and hasattr(response, 'usage') and response.usage:
+            if hasattr(response.usage, 'cost') and response.usage.cost:
+                self.total_cost += response.usage.cost
+                print(f"Total accumulated cost: ${self.total_cost:.6f}")
 
         def extract_content(text):
             # Use regular expression to find content between the backticks, ignoring empty new lines
@@ -122,8 +161,20 @@ Always return actions with code ```.
             return matches[0] if matches else None
 
         action = response.choices[0].message.content
-        print("LLM Output", action)
-        return extract_content(action)
+        # print("LLM Output", action)
+
+        # Return both the extracted action and the full LLM output for logging
+        extracted_action = extract_content(action) if action else ""
+
+        # Store the full response for analysis
+        self.last_llm_output = {
+            'llm_output': action.replace(extracted_action, "").strip() if action and extracted_action else action,
+            'action': extracted_action,
+            'model': self.model_name,
+            'usage': response.usage.model_dump() if hasattr(response, 'usage') and response.usage else None
+        }
+
+        return extracted_action
 
 
 @dataclasses.dataclass

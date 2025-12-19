@@ -69,10 +69,20 @@ class DataCollector:
         json_path = os.path.join(self.data_path, 'collected_data.json')
         try:
             with open(json_path, 'w') as f:
-                json.dump(self.data, f, cls=NumpyEncoder)
+                json.dump(self.data, f, cls=NumpyEncoder, indent=2)
         except Exception as e:
             print(f"Error saving to JSON: {str(e)}")
             self.record_failure("JSON save error", str(e))
+
+    def save_trajectory(self, trajectory_data):
+        """Save detailed trajectory data for a single task"""
+        trajectory_path = os.path.join(self.data_path, 'trajectory.json')
+        try:
+            with open(trajectory_path, 'w') as f:
+                json.dump(trajectory_data, f, cls=NumpyEncoder, indent=2)
+        except Exception as e:
+            print(f"Error saving trajectory: {str(e)}")
+            self.record_failure("Trajectory save error", str(e))
 
     def record_failure(self, error_message, stack_trace):
         failure_data = {
