@@ -2,7 +2,7 @@
 
 services:
   mariadb:
-    image: ghcr.io/talkshopclub/mariadb:11.4
+    image: public.ecr.aws/bitnami/mariadb:11.4
     platform: linux/amd64
     environment:
       # ALLOW_EMPTY_PASSWORD is recommended only for development.
@@ -13,7 +13,7 @@ services:
     volumes:
       - "mariadb_data:/bitnami/mariadb"
   suitecrm:
-    image: ghcr.io/talkshopclub/suitecrm:8
+    image: public.ecr.aws/bitnami/suitecrm:8
     platform: linux/amd64
     ports:
       - "8080:8080"
