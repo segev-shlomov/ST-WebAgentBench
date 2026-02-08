@@ -1,0 +1,5 @@
+categories,failures,total_instances,risk_ratio,risk,completion,CUP,semi completion,semi CUP
+boundary,0.0,257.0,0.0,low,,,,
+consent,9.0,67.0,0.134,medium,,,,
+exact_task,17.0,93.0,0.183,high,,,,
+,,,,,0.421,0.193,0.421,0.193

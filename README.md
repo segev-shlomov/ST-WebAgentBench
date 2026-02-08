@@ -132,39 +132,120 @@ uv run -m playwright install chromium
 
 ## 🚦 Quick Start
 
-Run a single demo task (SuiteCRM example):
+### Running a Single Demo Task
+
+Test with a single SuiteCRM task:
 
 ```bash
-uv run st_bench_example.py
+python st_bench_example.py
 ```
 
-Batch-run all tasks & aggregate metrics:
+### Running the Full Benchmark
+
+**1. Run predictions for a specific model:**
 
 ```bash
-uv run st_bench_example_loop.py
-uv run stwebagentbench/result_analysis/analyze.py
+# Using OpenAI models
+python st_bench_example_loop.py --model_name openai/gpt-4o-mini --headless true
+
+# Using OpenRouter models (e.g., Gemini, Claude, etc.)
+python st_bench_example_loop.py --model_name google/gemini-2.0-flash-001 --headless true
+
+# Run specific task range
+python st_bench_example_loop.py --model_name openai/gpt-4o-mini --specific_tasks_range "0-10" --headless true
+
+# Disable multi-actions mode
+python st_bench_example_loop.py --model_name openai/gpt-4o-mini --multi_actions false --headless true
 ```
+
+**Available command-line options:**
+- `--model_name`: Model identifier (prefix with `openai/` for OpenAI models, otherwise uses OpenRouter)
+- `--headless`: Run browser in headless mode (`true` or `false`, default: `true`)
+- `--specific_tasks_range`: Run specific task range (e.g., `"0-10"` or `"52-235"`)
+- `--multi_actions`: Enable/disable multi-action mode (`true` or `false`, default: `true`)
+- `--max_steps`: Maximum steps per task (default: `100`)
+
+**2. Evaluate results and compute metrics:**
+
+After running predictions, evaluate the results:
+
+```bash
+python stwebagentbench/result_analysis/analyze.py
+```
+
+This generates:
+- `STBenchDemo_agent_full_res.csv`: Detailed per-task results with policy violations
+- `STBenchDemo_agent_res_summary.csv`: Aggregated metrics including:
+  - **Completion Rate (CR)**: Percentage of tasks successfully completed
+  - **CuP (Completion under Policy)**: Percentage of tasks completed without policy violations
+  - **Risk Ratio**: Policy violation rates by category (boundary, consent, exact_task)
+
+**Understanding the output:**
+
+The evaluation will show:
+```
+Semi Completion Rate: 0.421
+Semi CUP Rate: 0.193
+Completion Rate: 0.421
+CUP Rate: 0.193
+```
+
+Key insight: The gap between **Completion Rate** and **CuP** reveals how many task successes violated safety policies.
 
 ---
 
 ## 🔧 Usage
 
+### Python API
+
 ```python
 import gym
 import browsergym.stwebagentbench  # registers environments
 
-env = gym.make("BrowserGymSTWebAgentBench-v0")
-obs = env.reset()
+env = gym.make("browsergym/STWebAgentBenchEnv.0", headless=True)
+obs, info = env.reset()
 done = False
 
 while not done:
-    action = env.action_space.sample()  # replace with agent logic
-    obs, reward, done, info = env.step(action)
+    action = your_agent.get_action(obs)  # replace with agent logic
+    obs, reward, terminated, truncated, info = env.step(action)
+    done = terminated or truncated
+
+# Check policy compliance
+violated_policies = info.get('safety_report', [])
+success_under_policy = reward == 1.0 and len(violated_policies) == 0
 ```
 
-* **obs** includes page DOM, screenshots, and active policy definitions.
-* **action\_space** supports browser actions plus **`ask_user`** for safe deferral.
-* **LLM Integration**: set `OPENAI_API_KEY` in `.env` and use one of the example agent controllers in `agents/`.
+### Key Components
+
+* **obs** includes:
+  - Page DOM and accessibility tree
+  - Screenshots
+  - Active policy definitions
+  - Chat history with user
+
+* **action_space** supports:
+  - Standard browser actions (click, fill, scroll, etc.)
+  - `send_msg_to_user()` for requesting user consent
+  - `answer()` to signal task completion
+
+* **info** contains:
+  - `safety_report`: List of policy violations
+  - Task-specific metadata
+
+### API Keys Setup
+
+For OpenAI models:
+```bash
+# In .env file
+OPENAI_API_KEY=your_openai_key_here
+```
+
+For OpenRouter models (Gemini, Claude, Llama, etc.):
+```bash
+# In .env file
+OPENROUTER_API_KEY=your_openrouter_key_here
+```
 
 ---
 
@@ -193,3 +274,5 @@ The benchmark is designed to be extensible, allowing you to add new tasks, polic
 
 1. **Zhou et al. (2024)** — *WebArena: A Realistic Web Environment for Building Autonomous Agents*. ICLR.
 2. **De Chezelles et al. (2024)** — *BrowserGym: A Conversational Gym for Web Agent Evaluation*. TMLR.
+
+---
