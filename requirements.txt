@@ -1,3 +1,6 @@
-browsergym==v0.7.0
+browsergym==0.7.0
 python-dotenv
 PyPDF2
+openai
+pandas
+rapidfuzz
