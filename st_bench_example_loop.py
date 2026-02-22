@@ -10,9 +10,15 @@ from dotenv import load_dotenv
 import browsergym.webarena
 import browsergym.stwebagentbench
 import warnings
-from st_bench_example import DemoAgentArgs, action_set
+from tqdm import tqdm
+from st_bench_example import DemoAgentArgs, get_action_set
 from stwebagentbench.utils.args import parse_arguments
 from stwebagentbench.utils.data_collector import DataCollector
+
+# Suppress all deprecation and user warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
 
 # Suppress the specific warnings
 warnings.filterwarnings("ignore", message="WARN: env.chat to get variables from other wrappers is deprecated")
@@ -32,14 +38,12 @@ STWEBAGENTBENCH = "STWebAgentBenchEnv"
 
 class EvaluationFramework:
     def __init__(self, args):
-        # self.agent = self.init_agent(args)
         load_dotenv()
         self.args = args
         self.SUPPORTED_ENVS = {STWEBAGENTBENCH: self.run_st_bench,
                                }
 
         self.run_id = str(uuid.uuid4())
-        # self.base_data_path = os.path.join('./data', self.run_id)
         self.base_data_path = os.path.join('./data')
         os.makedirs(self.base_data_path, exist_ok=True)
         self.data_collector = None
@@ -56,10 +60,12 @@ class EvaluationFramework:
         self.data_collector = DataCollector(self.base_data_path, env_id, task_name, exp_i)
 
     def load_exp_args(self, policies=None):
-        self.agent = self.init_agent(args, policies)
+        self.agent = self.init_agent(self.args, policies)
 
     def init_agent(self, args, policies):
-        return DemoAgentArgs(model_name="gpt-4o-mini").make_agent()
+        model_name = getattr(args, 'model_name', 'gpt-4o-mini')
+        print(f"Initializing agent with model: {model_name}")
+        return DemoAgentArgs(model_name=model_name).make_agent()
 
     def eval(self):
         try:
@@ -68,7 +74,6 @@ class EvaluationFramework:
             import traceback
             self.data_collector.record_failure(str(e), traceback.format_exc())
             print(f"Error: {str(e)}")
-            # Print the traceback
             print(traceback.format_exc())
         finally:
             self.data_collector.save_to_csv()
@@ -89,7 +94,10 @@ class EvaluationFramework:
         return max([int(d.split('_')[1]) for d in existing_exps]) + 1
 
     def agent_loop(self, env, obs, info, max_steps):
-        print(f"Task goal: {obs['goal']}\n")
+        page = env.page
+        tqdm.write(f"Task goal: {obs['goal']}\n")
+
+        pointer_env = self.get_pointer_env(env)
 
         loop_data = {
             'steps': [],
@@ -100,41 +108,57 @@ class EvaluationFramework:
 
         done = False
         violated_policies = []
-        reward = 0
-        step = 0
+        step_number = 0
 
         while not done:
-            step += 1
+            step_number += 1
             new_obs = self.agent.obs_preprocessor(obs)
             action = self.agent.get_action(new_obs)
-            print(f"  Step {step}: {action}")
+
+            # Capture LLM output for this step
+            llm_output = self.agent.last_llm_output if hasattr(self.agent, 'last_llm_output') else None
+
             env.chat.add_message('assistant', action)
             obs, reward, terminated, truncated, info = env.step(action)
             if "safety_report" in info:
                 for policy_report in info['safety_report']:
                     if policy_report['violated']:
                         violated_policies.append(policy_report)
+
+            # Enhanced step data with LLM reasoning
             step_data = {
+                'step': step_number,
+                'llm_reasoning': llm_output,
                 'action': action,
                 'reward': reward,
                 'terminated': terminated,
                 'truncated': truncated,
+                'safety_report': info.get('safety_report', []) if 'safety_report' in info else [],
             }
             loop_data['steps'].append(step_data)
-            loop_data['total_reward'] = reward
+            loop_data['total_reward'] += reward
             loop_data['terminated'] = terminated
             loop_data['truncated'] = truncated
-            loop_data['task_info_gt'] = info
+            loop_data['task_info_gt'] = info if not 'task_info' in loop_data else loop_data[
+                                                                                      'task_info_gt'] + info
             done = terminated or truncated
+            tqdm.write(f"Step {step_number}: Reward={reward}, Done={done}\n")
 
+        tqdm.write(f"Violated policies: {violated_policies}")
         success_under_policies = len(violated_policies) == 0 and reward == 1.0
+        tqdm.write(f"Success under policy: {success_under_policies}")
         loop_data['success_under_policies'] = success_under_policies
+        loop_data['violated_policies'] = violated_policies
 
-        print(f"  Reward: {reward}, Steps: {step}, Violations: {len(violated_policies)}, CuP: {success_under_policies}")
+        if done:
+            tqdm.write("Environment terminated or truncated.\n")
+            tqdm.write(f"Reward: {reward}, Terminated: {terminated}, Truncated: {truncated}\n")
+            return loop_data
+
+        tqdm.write("Agent loop completed.\n")
         return loop_data
 
     def run_st_bench(self):
-        # action_set = self.get_action_set()
         if self.args.specific_tasks_range:  # Specific tasks filtering
             start, end = map(int, self.args.specific_tasks_range.split('-'))
             tasks = browsergym.stwebagentbench.ALL_ST_BENCH_TASK_IDS[start:end + 1]
@@ -144,8 +168,23 @@ class EvaluationFramework:
         else:
             tasks = browsergym.stwebagentbench.ALL_ST_BENCH_TASK_IDS
 
+        # Print configuration
+        print("=" * 60)
+        print("EVALUATION CONFIGURATION")
+        print("=" * 60)
+        print(f"Model: {getattr(self.args, 'model_name', 'gpt-4o-mini')}")
+        print(f"Headless: {self.args.headless}")
+        print(f"Multi-actions: {self.args.multi_actions}")
+        print(f"Max steps: {self.args.max_steps}")
+        print(f"Slow mo: {self.args.slow_mo}")
+        print(f"Task range: {self.args.specific_tasks_range if self.args.specific_tasks_range else 'All tasks'}")
+        print(f"Total tasks to run: {len(tasks)}")
+        print("=" * 60)
+        print()
+
         total_rewards = []
-        for task in tasks:
+        pbar = tqdm(tasks, desc="Processing tasks", unit="task")
+        for task in pbar:
             env_id = self.args.env_id.split('.')[0]
             exp_i = self.get_next_experiment_number(self.base_data_path, env_id, task)
             self.init_data_collector(env_id, task, exp_i)
@@ -155,10 +194,11 @@ class EvaluationFramework:
                 'start_time': datetime.now().isoformat()
             }
 
-            print("Task:", task)
+            tqdm.write(f"\nTask: {task}")
 
+            action_set = get_action_set(multiaction=self.args.multi_actions)
             env = gym.make(task,
-                          headless=False,
+                          headless=self.args.headless,
                            action_mapping=action_set.to_python_code,
                            timeout=30000)
 
@@ -183,10 +223,25 @@ class EvaluationFramework:
             reward = loop_data['total_reward']
 
             task_data.update({
-                'end_time': datetime.now().isoformat()
+                'end_time': datetime.now().isoformat(),
+                'total_cost': self.agent.total_cost if hasattr(self.agent, 'total_cost') else 0.0,
             })
+
+            # Save detailed trajectory
+            trajectory_data = {
+                'task_name': str(task),
+                'model': self.agent.model_name if hasattr(self.agent, 'model_name') else 'unknown',
+                'start_time': task_data['start_time'],
+                'end_time': task_data['end_time'],
+                'total_cost': task_data['total_cost'],
+                'total_reward': loop_data['total_reward'],
+                'success_under_policies': loop_data['success_under_policies'],
+                'violated_policies': loop_data.get('violated_policies', []),
+                'trajectory': loop_data['steps'],
+            }
+            self.data_collector.save_trajectory(trajectory_data)
+
             self.data_collector.collect_data(task_data)
-            # self.data_collector.save_checkpoint()
             self.data_collector.save_to_csv()
             self.data_collector.save_to_json()
 
@@ -198,22 +253,6 @@ class EvaluationFramework:
         # statistics for the total rewards
         print(f"\nTotal rewards: {sum(total_rewards)}\n")
         print(f"\nAverage reward: {sum(total_rewards) / len(total_rewards)}\n")
-
-    # def get_action_set(self):
-    #     send_message_to_user: callable = None
-    #
-    #     def answer(message):  # Need to verify that its suitable to Ido and Sammi conventions
-    #         """
-    #         When the task is done, this function should be called
-    #         Examples:
-    #             answer("I finished the task.")
-    #             answer("I finished the task, the answer is 'value'")
-    #         """
-    #         send_message_to_user(message)
-    #
-    #     action_set = HighLevelActionSet(custom_actions=[answer], subsets=["bid", "chat", 'custom'], strict=False,
-    #                                     multiaction=True, demo_mode='off').to_python_code
-    #     return action_set
 
     @staticmethod
     def get_pointer_env(env):
@@ -241,5 +280,4 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run the agent')
     args = parse_arguments(parser)
     args.env_id = STWEBAGENTBENCH
-    args.specific_tasks_range = "47-48"
     main_sync(args)

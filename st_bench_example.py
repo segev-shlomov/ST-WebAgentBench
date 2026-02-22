@@ -2,11 +2,15 @@ import re
 import time
 import dataclasses
 import os
+import warnings
 
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
 load_dotenv()
+
+# Suppress beartype PEP 585 deprecation warnings from third-party libraries
+warnings.filterwarnings('ignore', category=DeprecationWarning, module='beartype')
 
 import gymnasium as gym
 
@@ -20,24 +24,29 @@ from stwebagentbench.policy_context import format_policy_context
 send_message_to_user: callable = None
 
 
-def finish(message):
+def answer(message):
     """
     When the task is done, this function should be called
 
     Examples:
-        finish("I finished the task.")
-        finish("I finished the task, the answer is 'value'")
+        answer("I finished the task.")
+        answer("I finished the task, the answer is 'value'")
     """
     send_message_to_user(message)
 
 
-action_set = HighLevelActionSet(
-    custom_actions=[finish],
-    subsets=["bid", "chat", "nav", "custom"],
-    strict=False,
-    multiaction=False,
-    demo_mode="off",
-)
+def get_action_set(multiaction=False):
+    return HighLevelActionSet(
+        custom_actions=[answer],
+        subsets=["bid", "chat", "nav", "custom"],
+        strict=False,
+        multiaction=multiaction,
+        demo_mode="off",
+    )
+
+
+# Default action set for backward compatibility
+action_set = get_action_set(multiaction=False)
 
 # Valid action names for fallback extraction
 _VALID_ACTIONS = {
@@ -45,7 +54,7 @@ _VALID_ACTIONS = {
     "dblclick", "scroll", "drag_and_drop", "upload_file",
     "send_msg_to_user", "report_infeasible",
     "goto", "go_back", "go_forward",
-    "finish", "noop",
+    "answer", "noop",
 }
 
 # Pattern: function_name( ... ) — greedy match for known action calls
@@ -114,10 +123,25 @@ class DemoAgent(Agent):
         super().__init__()
         self.model_name = model_name
         self._retries = 0
+        self.total_cost = 0.0
+        self.last_llm_output = None
 
         from openai import OpenAI
 
-        self.openai_client = OpenAI()
+        # Detect if model is from OpenAI (openai/...) or OpenRouter
+        self.is_openai = model_name.startswith('openai/')
+
+        if self.is_openai:
+            self.openai_client = OpenAI()
+            self.model_name = model_name.replace('openai/', '')
+        else:
+            openrouter_api_key = os.environ.get('OPENROUTER_API_KEY')
+            if not openrouter_api_key:
+                raise ValueError("OPENROUTER_API_KEY not found in environment variables")
+            self.openai_client = OpenAI(
+                base_url="https://openrouter.ai/api/v1",
+                api_key=openrouter_api_key,
+            )
 
     def get_action(self, obs: dict) -> tuple[str, dict]:
         formatted_chat = '\n'.join(
@@ -144,7 +168,7 @@ Think briefly, then output exactly one action call. Examples:
   fill('b12', 'search term')
   send_msg_to_user('Should I proceed with deletion?')
   goto('http://example.com/page')
-  finish('Task completed successfully.')
+  answer('Task completed successfully.')
 
 IMPORTANT: Output the action call directly. Do NOT wrap it in markdown code blocks."""
 
@@ -163,27 +187,45 @@ IMPORTANT: Output the action call directly. Do NOT wrap it in markdown code bloc
 
 Think step-by-step, then provide your action."""
 
-        response = self.openai_client.chat.completions.create(
-            model=self.model_name,
-            temperature=0.1,
-            max_tokens=512,
-            messages=[
+        api_params = {
+            "model": self.model_name,
+            "messages": [
                 {"role": "system", "content": system_msg},
                 {"role": "user", "content": prompt},
             ],
-        )
+        }
+
+        if self.is_openai:
+            api_params["temperature"] = 0.1
+            api_params["max_tokens"] = 512
+        else:
+            api_params["extra_body"] = {"usage": {"include": True}}
+
+        response = self.openai_client.chat.completions.create(**api_params)
+
+        # Track cost for OpenRouter
+        if not self.is_openai and hasattr(response, 'usage') and response.usage:
+            if hasattr(response.usage, 'cost') and response.usage.cost:
+                self.total_cost += response.usage.cost
 
         raw = response.choices[0].message.content
         print("LLM Output:", raw)
 
         action = extract_action(raw)
 
+        # Store the full response for analysis
+        self.last_llm_output = {
+            'llm_output': raw.replace(action, "").strip() if raw and action else raw,
+            'action': action,
+            'model': self.model_name,
+            'usage': response.usage.model_dump() if hasattr(response, 'usage') and response.usage else None,
+        }
+
         if action is None:
             self._retries += 1
             if self._retries >= 3:
                 self._retries = 0
-                return 'finish("Could not determine the next action.")'
-            # Return noop to let the agent try again on the next step
+                return 'answer("Could not determine the next action.")'
             print(f"  -> Could not parse action (retry {self._retries}/3), sending noop")
             return 'noop()'
 

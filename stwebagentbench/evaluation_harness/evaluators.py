@@ -405,6 +405,11 @@ class StringEvaluator(Evaluator):
     fuzzy match: the answer is similar to the reference answer, using LLM judge
     """
 
+    def __init__(self, eval_tag: str = "") -> None:
+        super().__init__(eval_tag)
+        self.satisfied_requirements = 0
+        self.total_requirements = 0
+
     @staticmethod
     @beartype
     def clean_answer(answer: str) -> str:
@@ -469,33 +474,53 @@ class StringEvaluator(Evaluator):
         pred = self.clean_answer(last_action_str)
 
         score = 1.0
+        self.satisfied_requirements = 0
+        self.total_requirements = 0
+
         for approach, value in configs["eval"]["reference_answers"].items():
             if approach == "exact_match":
-                score *= self.exact_match(ref=value, pred=pred)
+                cur_score = self.exact_match(ref=value, pred=pred)
+                score *= cur_score
+                self.total_requirements += 1
+                if cur_score:
+                    self.satisfied_requirements += 1
             elif approach == "must_include":
                 assert isinstance(value, list)
                 for must_value in value:
-                    score *= self.must_include(
+                    cur_score = self.must_include(
                         ref=must_value,
                         pred=pred,
                         tokenize=(len(value) == 1),
                     )
+                    score *= cur_score
+                    self.total_requirements += 1
+                    if cur_score:
+                        self.satisfied_requirements += 1
             elif approach == "fuzzy_match":
                 intent = configs["intent"]
                 if value == "N/A":
-                    score *= self.exact_match(ref=value, pred=pred)
+                    cur_score = self.exact_match(ref=value, pred=pred)
+                    score *= cur_score
+                    self.total_requirements += 1
+                    if cur_score:
+                        self.satisfied_requirements += 1
                     if score != 1:
-                        score = 1.0 * self.ua_match(
+                        cur_score = self.ua_match(
                             intent=configs["intent"],
                             ref=configs["eval"]["string_note"],
                             pred=pred,
                         )
+                        score = 1.0 * cur_score
                 else:
                     assert isinstance(value, list)
                     for reference in value:
-                        score *= self.fuzzy_match(
+                        cur_score = self.fuzzy_match(
                             ref=reference, pred=pred, intent=intent
                         )
+                        score *= cur_score
+                        self.total_requirements += 1
+                        if cur_score:
+                            self.satisfied_requirements += 1
         return score
 
 
@@ -544,6 +569,11 @@ class URLEvaluator(Evaluator):
 class HTMLContentEvaluator(Evaluator):
     """Check whether the contents appear in the page (task evaluator)."""
 
+    def __init__(self, eval_tag: str = "") -> None:
+        super().__init__(eval_tag)
+        self.satisfied_requirements = 0
+        self.total_requirements = 0
+
     @beartype
     def __call__(
             self,
@@ -557,6 +587,8 @@ class HTMLContentEvaluator(Evaluator):
 
         targets = configs["eval"]["program_html"]
         score = 1.0
+        self.satisfied_requirements = 0
+        self.total_requirements = 0
 
         for target in targets:
             target_url = _resolve_target_url(target["url"], page.url)
@@ -572,7 +604,11 @@ class HTMLContentEvaluator(Evaluator):
             try:
                 selected_element = _select_element(page, target, locator)
                 selected_element = html.unescape(selected_element)
-                score *= _evaluate_required_contents(selected_element, target["required_contents"])
+                cur_score = _evaluate_required_contents(selected_element, target["required_contents"])
+                score *= cur_score
+                self.total_requirements += 1
+                if cur_score:
+                    self.satisfied_requirements += 1
             finally:
                 if prev_page:
                     page.close()
@@ -1446,6 +1482,8 @@ class EvaluatorComb:
 
     def __init__(self, evaluators: List[Evaluator]) -> None:
         self.evaluators = evaluators
+        self.satisfied_requirements = 0
+        self.total_requirements = 0
 
     @beartype
     def __call__(
@@ -1456,9 +1494,19 @@ class EvaluatorComb:
             client: Union[CDPSession, None],
     ) -> float:
         score = 1.0
+        self.satisfied_requirements = 0
+        self.total_requirements = 0
+
         for evaluator in self.evaluators:
             cur_score = evaluator(trajectory, config_file, page, client)
             score *= cur_score
+
+            # Aggregate partial completion metrics from evaluators
+            if hasattr(evaluator, 'satisfied_requirements') and isinstance(evaluator.satisfied_requirements, (int, float)):
+                self.satisfied_requirements += evaluator.satisfied_requirements
+            if hasattr(evaluator, 'total_requirements') and isinstance(evaluator.total_requirements, (int, float)):
+                self.total_requirements += evaluator.total_requirements
+
         return score
 
 

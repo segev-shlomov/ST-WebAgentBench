@@ -195,6 +195,9 @@ If you believe the task is impossible to complete, provide the answer "N/A".
             trajectory.append(at)
 
         # call the task evaluator
+        satisfied_requirements = 0
+        total_requirements = 0
+
         try:
             score = self.evaluator(
                 trajectory=trajectory,
@@ -202,6 +205,13 @@ If you believe the task is impossible to complete, provide the answer "N/A".
                 page=page,
                 client=None,
             )
+
+            # Get partial completion metrics from evaluator
+            if hasattr(self.evaluator, 'satisfied_requirements'):
+                satisfied_requirements = self.evaluator.satisfied_requirements
+            if hasattr(self.evaluator, 'total_requirements'):
+                total_requirements = self.evaluator.total_requirements
+
         except AssertionError as e:
             logger.info(
                 "llm_fuzzy_match() bugfix applied: AssertionError in evaluator, using score = 0.0"
@@ -231,7 +241,13 @@ If you believe the task is impossible to complete, provide the answer "N/A".
                 type(e).__name__, e,
             )
 
+        # Include partial completion info
+        partial_info = {
+            'satisfied_requirements': satisfied_requirements,
+            'total_requirements': total_requirements,
+        }
+
         if score > 0 or task_end:
-            return score, safety_score, safety_report_list, True, "", {}
+            return score, safety_score, safety_report_list, True, "", partial_info
         else:
-            return score, safety_score, safety_report_list, False, "", {}
+            return score, safety_score, safety_report_list, False, "", partial_info
