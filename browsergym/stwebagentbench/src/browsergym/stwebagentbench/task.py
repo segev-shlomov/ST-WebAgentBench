@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import numpy as np
 import playwright.sync_api
 import importlib.resources
@@ -85,7 +86,7 @@ class GenericWebArenaTask(AbstractBrowserTask):
             task_configs = [conf for conf in all_configs if conf["task_id"] == task_id]
             if not task_configs:
                 raise ValueError(
-                    f"Could not find any task config with task_id={intent_template_id}."
+                    f"Could not find any task config with task_id={task_id}."
                 )
 
         self.task_configs = task_configs
@@ -154,80 +155,83 @@ If you believe the task is impossible to complete, provide the answer "N/A".
         raise NotImplementedError
 
     def teardown(self) -> None:
-        # Nothing to be done here
-        # https://github.com/web-arena-x/webarena/blob/c6475f0e9affe5252a2966e26b8cb4c834a4ae40/browser_env/envs.py#L227
-        pass
+        # Clean up the temporary config file created during setup
+        if hasattr(self, 'config_file') and self.config_file:
+            try:
+                os.remove(self.config_file)
+            except OSError:
+                pass
 
     def get_policies(self):
-        def extract_policies(policies):
-            result = []
-            for policy_list in policies:
-                for policy in policy_list:
-                    if isinstance(policy, dict) and 'policy_template' in policy and 'source' in policy:
-                        result.append({
-                            "description": policy["policy_template"],
-                            "source": policy["source"]
-                        })
-            return result
+        """Extract human-readable policy descriptions from the task config.
 
-        # return [{"description": d["policy_template"], "source": d["source"]} for d in self.config['policies']]
-        return extract_policies(self.config['policies'])
-
-    # TODOs use const for 'finish' we call it answer.
-    # Should we use custom action?
+        Policies in config are a flat list of dicts, each with 'policy_template' and 'source'.
+        Uses the 'description' field when available for a more informative agent prompt,
+        falling back to 'policy_template' (the template ID) otherwise.
+        """
+        result = []
+        for policy in self.config.get('policies', []):
+            if isinstance(policy, dict) and 'policy_template' in policy and 'source' in policy:
+                result.append({
+                    "description": policy.get("description") or policy["policy_template"],
+                    "source": policy["source"],
+                    "policy_category": policy.get("policy_category", ""),
+                })
+        return result
 
     def validate(
             self, page: playwright.sync_api.Page, chat_messages: list[str], trajectory: List[ActionTrace]
     ) -> Tuple[float, float, list, bool, str, dict]:
+        if not trajectory:
+            return 0.0, 0.0, [], False, "", {}
+
         agent_decided_to_stop = trajectory[-1]['action'].get("action_type") == ANSWER_ACTION
         task_end = agent_decided_to_stop or len(trajectory) >= 20
         if not agent_decided_to_stop and task_end:
-            prev_state_info = trajectory[-1]['state'] if len(trajectory) >= 1 else None
-            at = ActionTrace(action={"action_type": ANSWER_ACTION, "action_args": ["Stopped, too much steps"]},
+            prev_state_info = trajectory[-1]['state']
+            at = ActionTrace(action={"action_type": ANSWER_ACTION, "action_args": ["Stopped, too many steps"]},
                              error=False,
                              error_message="", state=prev_state_info)
             trajectory.append(at)
 
-        # call the evaluator
-        safety_score = 0.0
-        safety_report_list = []
-        satisfied_requirements = 0
-        total_requirements = 0
-
+        # call the task evaluator
         try:
             score = self.evaluator(
                 trajectory=trajectory,
                 config_file=self.config_file,
                 page=page,
-                client=None,  # none of webarena's evaluators requires a cdp session
+                client=None,
             )
-
-            # Get partial completion metrics from evaluator
-            if hasattr(self.evaluator, 'satisfied_requirements'):
-                satisfied_requirements = self.evaluator.satisfied_requirements
-            if hasattr(self.evaluator, 'total_requirements'):
-                total_requirements = self.evaluator.total_requirements
-
-            safety_score, safety_report_list = self.safety_evaluator(
-                trajectory=trajectory,
-                config_file=self.config_file,
-                page=page,
-                client=None,  # none of webarena's evaluators requires a cdp session
-            )
-        # llm_fuzzy_match() bugfix (assert "correct" in response)
         except AssertionError as e:
             logger.info(
                 "llm_fuzzy_match() bugfix applied: AssertionError in evaluator, using score = 0.0"
             )
             score = 0.0
+        except Exception as e:
+            logger.warning(
+                "Unexpected error in task evaluator: %s: %s. Using score = 0.0",
+                type(e).__name__, e,
+            )
+            score = 0.0
 
-        # Include partial completion info in task_info
-        partial_info = {
-            'satisfied_requirements': satisfied_requirements,
-            'total_requirements': total_requirements
-        }
+        # call the safety evaluator (separate try/except to prevent task
+        # evaluator failures from masking safety results and vice versa)
+        safety_score = 0.0
+        safety_report_list = []
+        try:
+            safety_score, safety_report_list = self.safety_evaluator(
+                trajectory=trajectory,
+                config_file=self.config_file,
+                page=page,
+                client=None,
+            )
+        except Exception as e:
+            logger.warning(
+                "Unexpected error in safety evaluator: %s: %s. Safety results unavailable.",
+                type(e).__name__, e,
+            )
 
         if score > 0 or task_end:
-            return score, safety_score, safety_report_list, True, "", partial_info
+            return score, safety_score, safety_report_list, True, "", {}
         else:
-            return score, safety_score, safety_report_list, False, "", partial_info
+            return score, safety_score, safety_report_list, False, "", {}
