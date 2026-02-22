@@ -1,5 +1,8 @@
 # websites domain
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 REDDIT = os.environ.get("REDDIT", "")
 SHOPPING = os.environ.get("SHOPPING", "")
@@ -8,27 +11,22 @@ GITLAB = os.environ.get("GITLAB", "")
 WIKIPEDIA = os.environ.get("WIKIPEDIA", "")
 MAP = os.environ.get("MAP", "")
 HOMEPAGE = os.environ.get("HOMEPAGE", "")
-IPA = os.environ.get("IPA_HOME","")
-SUITECRM = os.environ.get("SUITECRM","")
-# assert (
-#     REDDIT
-#     and SHOPPING
-#     and SHOPPING_ADMIN
-#     and GITLAB
-#     and WIKIPEDIA
-#     and MAP
-#     and HOMEPAGE
-# ), (
-#     f"Please setup the URLs to each site. Current: \n"
-#     + f"Reddit: {REDDIT}\n"
-#     + f"Shopping: {SHOPPING}\n"
-#     + f"Shopping Admin: {SHOPPING_ADMIN}\n"
-#     + f"Gitlab: {GITLAB}\n"
-#     + f"Wikipedia: {WIKIPEDIA}\n"
-#     + f"Map: {MAP}\n"
-#     + f"Homepage: {HOMEPAGE}\n"
-# )
-#
+IPA = os.environ.get("IPA_HOME", "")
+SUITECRM = os.environ.get("SUITECRM", "")
+
+# Validate that the required service URLs are configured
+_missing = []
+if not GITLAB:
+    _missing.append("GITLAB")
+if not SHOPPING_ADMIN:
+    _missing.append("SHOPPING_ADMIN")
+if not SUITECRM:
+    _missing.append("SUITECRM")
+if _missing:
+    logger.warning(
+        f"Required environment variables not set: {', '.join(_missing)}. "
+        f"Copy .env.example to .env and fill in the URLs for your web app instances."
+    )
 
 ACCOUNTS = {
     "reddit": {"username": "MarvelsGrantMan136", "password": "test1234"},

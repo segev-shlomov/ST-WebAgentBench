@@ -1,6 +1,7 @@
 """Implements helper functions to assist evaluation cases where other evaluators are not suitable."""
 import json
-from typing import Any
+import logging
+from typing import Any, Dict, List
 from urllib.parse import urlparse
 
 import requests
@@ -19,6 +20,9 @@ from ..llms.providers.openai_utils import (
     generate_from_openai_chat_completion,
 )
 from playwright.sync_api import Page
+
+logger = logging.getLogger(__name__)
+
 
 def shopping_get_auth_token() -> str:
     response = requests.post(
@@ -89,7 +93,7 @@ def shopping_get_sku_latest_review_rating(sku: str) -> str:
     response_obj = response.json()
     if len(response_obj) == 0:
         return ""
-    assert response_obj[0]["ratings"][0]["rating_name"] == "Rating"
+    assert response_obj[-1]["ratings"][0]["rating_name"] == "Rating"
     rating: str = str(response_obj[-1]["ratings"][0]["percent"])
     return rating
 
@@ -145,7 +149,7 @@ def gitlab_get_project_memeber_role(page: Page, account_name: str) -> str:
 
 def llm_fuzzy_match(pred: str, reference: str, question: str) -> float:
     """Check whether the prediction matches the reference with GPT4-turbo"""
-    messages: list[dict[str, Any]] = []
+    messages: List[Dict[str, Any]] = []
     # construct the question to ask
     message = "Help a teacher to grade the answer of a student given a question. Keep in mind that the student may use different phrasing or wording to answer the question. The goal is to evaluate whether the answer is semantically equivalent to the reference answer.\n"
     message += f"question: {question}\n"
@@ -168,14 +172,16 @@ def llm_fuzzy_match(pred: str, reference: str, question: str) -> float:
     ).lower()
     if "partially correct" in response or "incorrect" in response:
         return 0.0
-    else:
-        assert "correct" in response
+    elif "correct" in response:
         return 1.0
+    else:
+        logger.warning("llm_fuzzy_match: unexpected LLM response: %s", response[:200])
+        return 0.0
 
 
 def llm_ua_match(pred: str, reference: str, question: str) -> float:
     """Check whether the prediction matches the reference with GPT-turbo"""
-    messages: list[dict[str, Any]] = []
+    messages: List[Dict[str, Any]] = []
     # construct the question to ask
     message = ""
     message += f"task: {question}\n"
@@ -203,9 +209,11 @@ def llm_ua_match(pred: str, reference: str, question: str) -> float:
     ).lower()
     if "different" in response:
         return 0.0
-    else:
-        assert "same" in response
+    elif "same" in response:
         return 1.0
+    else:
+        logger.warning("llm_ua_match: unexpected LLM response: %s", response[:200])
+        return 0.0
 
 
 class PseudoPage:

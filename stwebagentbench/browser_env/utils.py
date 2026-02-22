@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from io import BytesIO
-from typing import Any, Dict, TypedDict, Union
+from typing import Any, Dict, List, Optional, TypedDict, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -27,17 +27,17 @@ def png_bytes_to_numpy(png: bytes) -> npt.NDArray[np.uint8]:
 class AccessibilityTreeNode(TypedDict):
     nodeId: str
     ignored: bool
-    role: dict[str, Any]
-    chromeRole: dict[str, Any]
-    name: dict[str, Any]
-    properties: list[dict[str, Any]]
-    childIds: list[str]
+    role: Dict[str, Any]
+    chromeRole: Dict[str, Any]
+    name: Dict[str, Any]
+    properties: List[Dict[str, Any]]
+    childIds: List[str]
     parentId: str
     backendDOMNodeId: str
     frameId: str
-    bound: list[float] | None
-    union_bound: list[float] | None
-    offsetrect_bound: list[float] | None
+    bound: Optional[List[float]]
+    union_bound: Optional[List[float]]
+    offsetrect_bound: Optional[List[float]]
 
 
 class DOMNode(TypedDict):
@@ -48,9 +48,9 @@ class DOMNode(TypedDict):
     attributes: str
     backendNodeId: str
     parentId: str
-    childIds: list[str]
+    childIds: List[str]
     cursor: int
-    union_bound: list[float] | None
+    union_bound: Optional[List[float]]
 
 
 class BrowserConfig(TypedDict):
@@ -64,17 +64,17 @@ class BrowserConfig(TypedDict):
 
 
 class BrowserInfo(TypedDict):
-    DOMTree: dict[str, Any]
+    DOMTree: Dict[str, Any]
     config: BrowserConfig
 
 
-AccessibilityTree = list[AccessibilityTreeNode]
-DOMTree = list[DOMNode]
+AccessibilityTree = List[AccessibilityTreeNode]
+DOMTree = List[DOMNode]
 
 
-Observation = str | npt.NDArray[np.uint8]
+Observation = Union[str, npt.NDArray[np.uint8]]
 
 
 class StateInfo(TypedDict):
-    observation: dict[str, Observation]
+    observation: Dict[str, Observation]
     info: Dict[str, Any]

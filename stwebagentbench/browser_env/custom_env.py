@@ -375,7 +375,7 @@ document.addEventListener("visibilitychange", () => {
             return None
 
     def step(self, action: str) -> tuple:
-        print("Current action:", action)
+        logger.debug("Current action: %s", action)
         self.last_action = action
         element_text = ""
         element_html = ""
@@ -495,10 +495,19 @@ document.addEventListener("visibilitychange", () => {
                     content = create_content(func_name, bid, element_text, "failed", error=str(e))
                 action_msg = f'ERROR: {json.dumps(content)}'
 
+            # Capture a snapshot of current observation state for this action.
+            # Use a shallow copy to avoid mutation from later steps.
+            # Include the *current* page URL (post-action) for accurate URL tracking.
+            obs_snapshot = dict(self.obs) if self.obs else {}
+            try:
+                obs_snapshot['url'] = self.page.url
+                obs_snapshot['open_pages_urls'] = [p.url for p in self.context.pages]
+            except Exception:
+                pass
             current_trajectory.append(ActionTrace(action={"action_type": func_name, "action_args": func_args},
                                                   error=self.last_action_error != "",
                                                   error_message=self.last_action_error,
-                                                  state=StateInfo(info=info, observation=self.obs)))
+                                                  state=StateInfo(info=dict(info), observation=obs_snapshot)))
             if self.feedback_collecting:
                 self.feedback.append(action_msg)
 
@@ -704,7 +713,6 @@ document.addEventListener("visibilitychange", () => {
             "last_action": self.last_action,
             "last_action_error": self.last_action_error,
             "policies": self.task.get_policies(),
-            "nocodeui_pu": analyze_current_page_sync(self.context) if self.enable_nocodeui_pw else None,
             "elapsed_time": np.asarray([time.time() - self.start_time]),
             "read_page": self.read_webpage_content(),
         }
@@ -718,7 +726,8 @@ document.addEventListener("visibilitychange", () => {
             self.page.wait_for_load_state('networkidle')
 
             if 'pdf' in url.lower():
-                pdf_content = BytesIO(self.page.content())
+                response = self.page.context.request.get(url)
+                pdf_content = BytesIO(response.body())
                 reader = PdfReader(pdf_content)
                 content = reader.pages[0].extract_text()
             else:
@@ -731,8 +740,8 @@ document.addEventListener("visibilitychange", () => {
             return content
 
         except Exception as e:
-            print(f"Error reading page: {str(e)}")
+            logger.warning("Error reading page: %s", e)
             return ""
 
         finally:
-            print(f"Execution time: {time.time() - start_time:.2f} seconds")
+            logger.debug("Execution time: %.2f seconds", time.time() - start_time)
