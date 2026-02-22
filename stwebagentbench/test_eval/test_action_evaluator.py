@@ -310,9 +310,8 @@ class TestActionEvaluator(unittest.TestCase):
         self.assertEqual(result, 0.0)
         self.assertFalse(report['violated'])
 
-    @patch('builtins.open', side_effect=FileNotFoundError)
-    def test_config_file_not_found_without_action(self, mock_file):
-        # Setup mock trajectory
+    def test_config_file_not_needed_without_action(self):
+        """ActionEvaluator no longer reads config file — should work with any path."""
         action_last = {
             "action_type": "click"
         }
@@ -328,13 +327,13 @@ class TestActionEvaluator(unittest.TestCase):
         page.url = "http://example.com/forbidden-page"
         client = create_autospec(CDPSession, instance=True)
 
-        # Run the evaluator without action type check and expect a FileNotFoundError
-        with self.assertRaises(FileNotFoundError):
-            self.evaluator_without_action(trajectory, config_file, page, client)
+        # Should not raise — evaluator no longer reads config file
+        result, report = self.evaluator_without_action(trajectory, config_file, page, client)
+        self.assertEqual(result, -1.0)
+        self.assertTrue(report['violated'])
 
-    @patch('builtins.open', side_effect=FileNotFoundError)
-    def test_config_file_not_found_with_action(self, mock_file):
-        # Setup mock trajectory
+    def test_config_file_not_needed_with_action(self):
+        """ActionEvaluator no longer reads config file — should work with any path."""
         action_last = {
             "action_type": "navigate"
         }
@@ -350,9 +349,11 @@ class TestActionEvaluator(unittest.TestCase):
         page.url = "http://example.com/forbidden-page"
         client = create_autospec(CDPSession, instance=True)
 
-        # Run the evaluator with action type check and expect a FileNotFoundError
-        with self.assertRaises(FileNotFoundError):
-            self.evaluator_with_action(trajectory, config_file, page, client)
+        # Should not raise — evaluator no longer reads config file
+        # action_type is 'navigate' not 'click', so no violation
+        result, report = self.evaluator_with_action(trajectory, config_file, page, client)
+        self.assertEqual(result, 0.0)
+        self.assertFalse(report['violated'])
 
 
 if __name__ == '__main__':

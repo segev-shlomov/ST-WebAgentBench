@@ -149,14 +149,14 @@ class TestSequenceEvaluator(unittest.TestCase):
             {"action_type": "click", "element_selector": "#submit-btn"},
             {"action_type": "type", "element_selector": "#username-field"},
             {"action_type": "click", "element_selector": "#login-btn"},
-            {"action_type": "navigate", "element_selector": "#dashboard"}
+            {"action_type": "answer", "element_selector": ""}
         ]
         # Each action with corresponding element_bid in state_info
         state_infos = [
             {"element_bid": "bid_submit"},
             {"element_bid": "bid_username"},
             {"element_bid": "bid_login"},
-            {"element_bid": "bid_dashboard"}
+            {"element_bid": ""}
         ]
         trajectory = [
             ActionTrace(action=actions[i], state=StateInfo(info=state_infos[i], observation={}))
@@ -193,7 +193,7 @@ class TestSequenceEvaluator(unittest.TestCase):
             {"action_type": "type", "element_selector": "#username-field"},
             {"action_type": "hover", "element_selector": "#logo"},
             {"action_type": "click", "element_selector": "#login-btn"},
-            {"action_type": "navigate", "element_selector": "#dashboard"}
+            {"action_type": "answer", "element_selector": ""}
         ]
         # Corresponding bids, with non-sequence actions having irrelevant bids
         state_infos = [
@@ -203,7 +203,7 @@ class TestSequenceEvaluator(unittest.TestCase):
             {"element_bid": "bid_username"},
             {"element_bid": "bid_logo"},
             {"element_bid": "bid_login"},
-            {"element_bid": "bid_dashboard"}
+            {"element_bid": ""}
         ]
         trajectory = [
             ActionTrace(action=actions[i], state=StateInfo(info=state_infos[i], observation={}))
@@ -231,13 +231,13 @@ class TestSequenceEvaluator(unittest.TestCase):
             {"action_type": "click"},
             {"action_type": "type"},
             {"action_type": "click"},
-            {"action_type": "navigate"}
+            {"action_type": "answer"}
         ]
         state_texts = [
             {"element_text": "Submit"},
             {"element_text": "Username"},
             {"element_text": "Login"},
-            {"element_text": "Dashboard"}
+            {"element_text": ""}
         ]
         trajectory = [
             ActionTrace(action=actions[i], state=StateInfo(info=state_texts[i], observation={}))
@@ -266,14 +266,14 @@ class TestSequenceEvaluator(unittest.TestCase):
             {"action_type": "click"},
             {"action_type": "type"},
             {"action_type": "click"},
-            {"action_type": "navigate"}
+            {"action_type": "answer"}
         ]
         state_texts = [
             {"element_text": "Home"},
             {"element_text": "Submit"},
             {"element_text": "Username"},
             {"element_text": "Login"},
-            {"element_text": "Dashboard"}
+            {"element_text": ""}
         ]
         trajectory = [
             ActionTrace(action=actions[i], state=StateInfo(info=state_texts[i], observation={}))
@@ -310,7 +310,7 @@ class TestSequenceEvaluator(unittest.TestCase):
             {"action_type": "type", "element_selector": "#username-field"},
             {"action_type": "hover", "element_selector": "#logo"},
             {"action_type": "click", "element_selector": "#login-btn"},
-            {"action_type": "navigate", "element_selector": "#dashboard"}
+            {"action_type": "answer", "element_selector": ""}
         ]
         # Corresponding bids, with non-sequence actions having irrelevant bids
         state_infos = [
@@ -320,7 +320,7 @@ class TestSequenceEvaluator(unittest.TestCase):
             {"element_bid": "bid_username"},
             {"element_bid": "bid_logo"},
             {"element_bid": "bid_login"},
-            {"element_bid": "bid_dashboard"}
+            {"element_bid": ""}
         ]
         trajectory = [
             ActionTrace(action=actions[i], state=StateInfo(info=state_infos[i], observation={}))
@@ -434,28 +434,24 @@ class TestSequenceEvaluator(unittest.TestCase):
         # Run the evaluator with sequence check using selectors and contiguous matching
         result, report = self.evaluator_with_sequence_selector_contiguous(trajectory, config_file, page, client)
 
-        # Since the trajectory is empty, a we do not consider it violation because we only compute it when there's an answer action
+        # Empty trajectory is dormant — the trigger condition was never met
         self.assertEqual(result, 0.0)
         self.assertFalse(report['violated'])
+        self.assertTrue(report.get('dormant', False))
 
-    @patch('stwebagentbench.evaluation_harness.evaluators.get_element_bid_by_selector', side_effect=FileNotFoundError)
-    @patch('builtins.open', side_effect=FileNotFoundError)
-    def test_config_file_not_found_with_selectors(self, mock_file, mock_get_bid):
-        # Setup mock trajectory with the required sequence
+    def test_config_file_not_needed_with_selectors(self):
+        """SequenceEvaluator no longer reads config file — should work with any path."""
         actions = [
             {"action_type": "click", "element_selector": "#submit-btn"},
             {"action_type": "type", "element_selector": "#username-field"},
             {"action_type": "click", "element_selector": "#login-btn"},
             {"action_type": "answer", "element_selector": "#login-btn"}
-
         ]
-        # Even though selectors are used, the config file is not found
         state_infos = [
             {"element_bid": "bid_submit"},
             {"element_bid": "bid_username"},
             {"element_bid": "bid_login"},
             {"element_bid": ""}
-
         ]
         trajectory = [
             ActionTrace(action=actions[i], state=StateInfo(info=state_infos[i], observation={}))
@@ -465,9 +461,10 @@ class TestSequenceEvaluator(unittest.TestCase):
         page = create_autospec(Page, instance=True)
         client = create_autospec(CDPSession, instance=True)
 
-        # Run the evaluator and expect a FileNotFoundError
-        with self.assertRaises(FileNotFoundError):
-            self.evaluator_with_sequence_selector_contiguous(trajectory, config_file, page, client)
+        # Should not raise — evaluator no longer reads config file
+        result, report = self.evaluator_with_sequence_selector_contiguous(trajectory, config_file, page, client)
+        # The sequence selectors use element_bid matching, which is evaluated in trajectory
+        self.assertIsNotNone(result)
 
     @patch('stwebagentbench.evaluation_harness.evaluators.get_element_bid_by_selector')
     @patch('builtins.open', new_callable=mock_open, read_data=json.dumps({
@@ -483,7 +480,7 @@ class TestSequenceEvaluator(unittest.TestCase):
             {"action_type": "click"},
             {"action_type": "type"},
             {"action_type": "click"},
-            {"action_type": "navigate"}
+            {"action_type": "answer"}
         ]
         state_texts = [
             {"element_text": "Submit"},
@@ -492,7 +489,7 @@ class TestSequenceEvaluator(unittest.TestCase):
             {"element_text": "Submit"},
             {"element_text": "Username"},
             {"element_text": "Login"},
-            {"element_text": "Dashboard"}
+            {"element_text": ""}
         ]
         trajectory = [
             ActionTrace(action=actions[i], state=StateInfo(info=state_texts[i], observation={}))
@@ -518,12 +515,14 @@ class TestSequenceEvaluator(unittest.TestCase):
         actions = [
             {"action_type": "Click"},
             {"action_type": "TYPE"},
-            {"action_type": "click"}
+            {"action_type": "click"},
+            {"action_type": "answer"}
         ]
         state_texts = [
             {"element_text": "submit"},
             {"element_text": "USERNAME"},
-            {"element_text": "LOGIN"}
+            {"element_text": "LOGIN"},
+            {"element_text": ""}
         ]
         trajectory = [
             ActionTrace(action=actions[i], state=StateInfo(info=state_texts[i], observation={}))

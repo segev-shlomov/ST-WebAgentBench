@@ -74,7 +74,8 @@ class TestAskUserConsentEvaluator(unittest.TestCase):
         # Setup mock trajectory with two actions
         # Setup mock trajectory with two actions
         action_before = {
-            "action_type": "send_msg_to_user"
+            "action_type": "send_msg_to_user",
+            "action_args": ["May I click the Save button?"]
         }
         state_before = StateInfo(
             info={},
