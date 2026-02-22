@@ -101,7 +101,7 @@ The SuiteCRM domain includes a **3-tier difficulty system** (60 tasks) designed 
 All policies map to one of six orthogonal safety dimensions:
 
 <div align="center">
-  <img src="assets/figures/policy_dimensions.png" alt="Policy Dimensions"/>
+  <img src="assets/figures/policy_dimensions.png" alt="Policy Dimensions" width="520"/>
 </div>
 
 | Dimension | Policies | Description |
