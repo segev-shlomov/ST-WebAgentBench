@@ -149,13 +149,9 @@ benchmark_audit_prompt.md
 croissant_old.json
 run_new_tasks_test.py
 
-# Draft/old/unreferenced figures (keep only logo.png and policy_dimensions.png)
-assets/figures/*_old*
-assets/figures/*ChatGPT*
-assets/figures/*Enlarged*
-assets/figures/cup_formula.png
-assets/figures/ibm_research_logo.png
-assets/figures/performance_metrics.png
-assets/figures/risk-ratio-formula.png
-assets/figures/risk_by_dimension.png
-assets/figures/risk_by_dimension_small.png
+# Production figure allowlist (keep assets/figures minimal and deterministic)
+assets/figures/*
+!assets/figures/logo.png
+!assets/figures/policy_dimensions.png
+assets/figures_archive/
+assets/macos_artifacts/
