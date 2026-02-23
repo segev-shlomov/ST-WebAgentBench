@@ -796,6 +796,16 @@ def admin_view_key_requests(password: str) -> str:
     return "\n".join(lines)
 
 
+def admin_login(password: str):
+    """Validate admin password and return visibility update for admin tab."""
+    admin_pw = _get_admin_password()
+    if not admin_pw:
+        return gr.update(visible=False), "Admin not configured."
+    if password != admin_pw:
+        return gr.update(visible=False), "Invalid password."
+    return gr.update(visible=True), "Access granted."
+
+
 # ---------------------------------------------------------------------------
 # Gradio UI
 # ---------------------------------------------------------------------------
@@ -1381,13 +1391,16 @@ contact details.
                     "- [Project Website](https://sites.google.com/view/st-webagentbench/home)"
                 )
 
-            # ---- Tab 10: Admin ----
-            with gr.TabItem("Admin"):
-                gr.Markdown("""
-                ### Administration
+                # Hidden admin gate at bottom of About tab
+                with gr.Accordion("Maintainer Access", open=False, visible=True):
+                    admin_login_pw = gr.Textbox(label="Password", type="password")
+                    admin_login_btn = gr.Button("Login", size="sm")
+                    admin_login_msg = gr.Textbox(label="Status", interactive=False, lines=1)
 
-                Requires the admin password (set via `ADMIN_PASSWORD` Space secret).
-                """)
+            # ---- Hidden admin panel (not a visible tab) ----
+            # Access via password gate only — no "Admin" tab shown to users.
+            with gr.TabItem("Admin", visible=False) as admin_tab:
+                gr.Markdown("### Administration")
 
                 with gr.Accordion("Remove Submission", open=True):
                     admin_agent_id = gr.Textbox(label="Agent ID to remove")
@@ -1414,6 +1427,14 @@ contact details.
                         outputs=[admin_key_log],
                         api_name=False,
                     )
+
+            # Wire admin login button (must be after admin_tab is defined)
+            admin_login_btn.click(
+                admin_login,
+                inputs=[admin_login_pw],
+                outputs=[admin_tab, admin_login_msg],
+                api_name=False,
+            )
 
     return demo
 
