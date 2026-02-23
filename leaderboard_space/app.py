@@ -41,8 +41,9 @@ from validation.validate import (
 
 logger = logging.getLogger(__name__)
 
-# Admin password from environment variable (set in HF Space secrets)
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
+def _get_admin_password() -> str:
+    """Read admin password at call time (not import time) so Space picks up secret changes."""
+    return os.environ.get("ADMIN_PASSWORD", "")
 
 # Master secret env var name — used to derive per-user signing keys.
 # Set as HF Space secret — never exposed publicly.
@@ -751,9 +752,10 @@ def process_upload(file):
 
 def admin_remove_submission(agent_id: str, password: str):
     """Remove a submission by agent_id (admin only)."""
-    if not ADMIN_PASSWORD:
+    admin_pw = _get_admin_password()
+    if not admin_pw:
         return "Admin password not configured. Set ADMIN_PASSWORD in Space secrets."
-    if password != ADMIN_PASSWORD:
+    if password != admin_pw:
         return "Invalid admin password."
     if not agent_id or not agent_id.strip():
         return "Please enter an agent_id."
@@ -773,9 +775,10 @@ def admin_remove_submission(agent_id: str, password: str):
 
 def admin_view_key_requests(password: str) -> str:
     """Show all key requests (admin only)."""
-    if not ADMIN_PASSWORD:
+    admin_pw = _get_admin_password()
+    if not admin_pw:
         return "Admin password not configured. Set ADMIN_PASSWORD in Space secrets."
-    if password != ADMIN_PASSWORD:
+    if password != admin_pw:
         return "Invalid admin password."
 
     requests = _load_key_requests()
