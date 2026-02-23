@@ -22,6 +22,28 @@ analyze:
 	@echo "--- Running analysis on results ---"
 	python stwebagentbench/result_analysis/analyze.py
 
+submit:
+	@echo "--- Generating leaderboard submission ---"
+	python -m stwebagentbench.leaderboard.submit \
+		--results-dir data/STWebAgentBenchEnv/browsergym \
+		--agent-id $(AGENT_ID) \
+		--model-name $(MODEL_NAME) \
+		--team $(TEAM) \
+		--code-url $(CODE_URL) \
+		--contact-email $(CONTACT_EMAIL) \
+		--output submission.json
+
+validate-submission:
+	@echo "--- Validating submission ---"
+	python -m stwebagentbench.leaderboard.submit \
+		--results-dir data/STWebAgentBenchEnv/browsergym \
+		--agent-id $(AGENT_ID) \
+		--model-name $(MODEL_NAME) \
+		--team $(TEAM) \
+		--code-url $(CODE_URL) \
+		--contact-email $(CONTACT_EMAIL) \
+		--validate-only
+
 test-evaluations:
 	@echo "--- Running tests ---"
 	PYTHONPATH=. pytest

@@ -155,3 +155,9 @@ assets/figures/*
 !assets/figures/policy_dimensions.png
 assets/figures_archive/
 assets/macos_artifacts/
+
+# Policy improvement snapshots (internal development only)
+.policy_improvements/
+
+# Test submission files (generated, never upload to real leaderboard)
+tests/test_submission_*.json

@@ -4,3 +4,4 @@ PyPDF2
 openai
 pandas
 rapidfuzz
+pydantic>=2.0

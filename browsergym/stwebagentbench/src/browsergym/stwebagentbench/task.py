@@ -124,6 +124,20 @@ class GenericWebArenaTask(AbstractBrowserTask):
                 if i < len(start_urls) - 1:
                     page = page.context.new_page()
 
+        # Execute setup scripts for modality-challenge tasks (inject CSS/JS after navigation)
+        if self.config.get("setup_scripts"):
+            # Wait for SPA content to fully render (Angular/React modules load async)
+            try:
+                page.wait_for_load_state("networkidle", timeout=10000)
+            except Exception:
+                page.wait_for_timeout(3000)  # fallback if networkidle times out
+            for script in self.config["setup_scripts"]:
+                try:
+                    page.evaluate(f"() => {{ {script} }}")
+                except Exception as e:
+                    logger.warning("Setup script failed: %s", e)
+            page.wait_for_timeout(500)  # let injected CSS/JS settle
+
         # recover goal
         goal = self.config["intent"]
 

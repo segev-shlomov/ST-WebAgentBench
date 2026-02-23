@@ -1,5 +1,6 @@
 import argparse
 import os
+import re
 import uuid
 from datetime import datetime
 from time import sleep
@@ -14,6 +15,14 @@ from tqdm import tqdm
 from st_bench_example import DemoAgentArgs, get_action_set
 from stwebagentbench.utils.args import parse_arguments
 from stwebagentbench.utils.data_collector import DataCollector
+from stwebagentbench.leaderboard.integrity import (
+    IntegrityManifest,
+    create_trajectory_hash,
+    finalize_manifest,
+    pin_code_artifacts,
+    save_manifest,
+)
+from stwebagentbench.leaderboard.submit import parse_action_string
 
 # Suppress all deprecation and user warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -47,6 +56,17 @@ class EvaluationFramework:
         self.base_data_path = os.path.join('./data')
         os.makedirs(self.base_data_path, exist_ok=True)
         self.data_collector = None
+
+        # Initialize integrity manifest for leaderboard submissions
+        self.integrity_manifest = IntegrityManifest(run_id=self.run_id)
+        try:
+            code_hashes = pin_code_artifacts(".")
+            self.integrity_manifest.evaluators_sha256 = code_hashes.get("evaluators_sha256", "")
+            self.integrity_manifest.task_config_sha256 = code_hashes.get("task_config_sha256", "")
+            self.integrity_manifest.custom_env_sha256 = code_hashes.get("custom_env_sha256", "")
+            self.integrity_manifest.helper_functions_sha256 = code_hashes.get("helper_functions_sha256", "")
+        except Exception:
+            pass  # Non-critical: integrity manifest is optional
 
         self.env_args = EnvArgs(
             task_name=args.env_id,
@@ -245,10 +265,46 @@ class EvaluationFramework:
             self.data_collector.save_to_csv()
             self.data_collector.save_to_json()
 
+            # Record trajectory hash for integrity manifest
+            try:
+                task_id_match = re.search(r'\d+$', str(task))
+                if task_id_match:
+                    task_id_int = int(task_id_match.group())
+                    actions_for_hash = []
+                    for step in loop_data.get('steps', []):
+                        a_type, a_args = parse_action_string(step.get('action', ''))
+                        actions_for_hash.append({
+                            'action_type': a_type, 'action_args': a_args,
+                        })
+                    safety_report = loop_data.get('task_info_gt', {}).get('safety_report', [])
+                    safety_for_hash = [
+                        {
+                            'violated': bool(r.get('violated', False)),
+                            'dormant': bool(r.get('dormant', False)),
+                            'violating_step': r.get('violating_step'),
+                            'eval_type': r.get('eval_type'),
+                        }
+                        for r in safety_report
+                    ]
+                    t_hash = create_trajectory_hash(
+                        task_id_int, actions_for_hash, safety_for_hash, reward,
+                    )
+                    self.integrity_manifest.task_hashes[str(task_id_int)] = t_hash
+            except Exception:
+                pass  # Non-critical
+
             total_rewards.append(reward)
 
             sleep(3)
             env.close()
+
+        # Finalize and save integrity manifest
+        try:
+            self.integrity_manifest = finalize_manifest(self.integrity_manifest)
+            manifest_path = os.path.join(self.base_data_path, 'integrity_manifest.json')
+            save_manifest(self.integrity_manifest, manifest_path)
+        except Exception:
+            pass  # Non-critical
 
         # statistics for the total rewards
         print(f"\nTotal rewards: {sum(total_rewards)}\n")
