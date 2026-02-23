@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import List, Optional
 
 import gradio as gr
+from gradio.themes.utils import colors, fonts, sizes
 import pandas as pd
 import plotly.graph_objects as go
 
@@ -187,6 +188,297 @@ def handle_key_request(email: str, team: str, institution: str) -> str:
 
 RISK_COLORS = {"low": "#22c55e", "medium": "#eab308", "high": "#ef4444"}
 
+# ---------------------------------------------------------------------------
+# UI Design Constants
+# ---------------------------------------------------------------------------
+
+CUSTOM_CSS = """
+/* === Global === */
+.gradio-container {
+    max-width: 1200px !important;
+    margin: 0 auto !important;
+}
+
+/* === Hero Header === */
+#hero-header {
+    background: linear-gradient(135deg, #1e3a8a 0%, #312e81 50%, #1e293b 100%);
+    border-radius: 16px;
+    padding: 40px 48px 32px;
+    margin-bottom: 8px;
+    position: relative;
+    overflow: hidden;
+}
+#hero-header::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -20%;
+    width: 500px;
+    height: 500px;
+    background: radial-gradient(circle, rgba(99, 102, 241, 0.15) 0%, transparent 70%);
+    pointer-events: none;
+}
+#hero-header h1 {
+    color: white;
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 0 0 6px 0;
+    letter-spacing: -0.02em;
+}
+#hero-header .subtitle {
+    color: #cbd5e1;
+    font-size: 1.05rem;
+    margin: 0 0 16px 0;
+    font-weight: 400;
+}
+#hero-header .iclr-badge {
+    display: inline-block;
+    background: linear-gradient(135deg, #6366f1, #818cf8);
+    color: white;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 9999px;
+    letter-spacing: 0.03em;
+    vertical-align: middle;
+    margin-left: 8px;
+}
+#hero-header .nav-links {
+    margin-top: 12px;
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+#hero-header .nav-links a {
+    color: #93c5fd;
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: color 0.15s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+#hero-header .nav-links a:hover {
+    color: white;
+}
+#hero-header .stats-strip {
+    display: flex;
+    gap: 32px;
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(255,255,255,0.1);
+    flex-wrap: wrap;
+}
+#hero-header .stat-item {
+    text-align: left;
+}
+#hero-header .stat-value {
+    color: white;
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1.2;
+}
+#hero-header .stat-label {
+    color: #94a3b8;
+    font-size: 0.78rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+#hero-header .logo-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 12px;
+}
+#hero-header .logo-row img {
+    height: 28px;
+    filter: brightness(0) invert(1);
+    opacity: 0.9;
+}
+
+/* === Tabs === */
+.tabs > .tab-nav {
+    border-bottom: 2px solid #e2e8f0 !important;
+    gap: 0 !important;
+    padding: 0 4px !important;
+    background: transparent !important;
+}
+.tabs > .tab-nav > button {
+    border: none !important;
+    border-bottom: 2px solid transparent !important;
+    margin-bottom: -2px !important;
+    padding: 10px 18px !important;
+    font-weight: 500 !important;
+    font-size: 0.9rem !important;
+    color: #64748b !important;
+    background: transparent !important;
+    transition: color 0.15s ease, border-color 0.15s ease !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+}
+.tabs > .tab-nav > button:hover {
+    color: #1e293b !important;
+    background: transparent !important;
+}
+.tabs > .tab-nav > button.selected {
+    color: #2563eb !important;
+    border-bottom-color: #2563eb !important;
+    font-weight: 600 !important;
+    background: transparent !important;
+}
+
+/* === Tables (Dataframe) === */
+.table-wrap {
+    border-radius: 12px !important;
+    overflow: hidden !important;
+    border: 1px solid #e2e8f0 !important;
+}
+.table-wrap table {
+    border-collapse: collapse !important;
+}
+.table-wrap table thead th {
+    background: #f1f5f9 !important;
+    color: #334155 !important;
+    font-weight: 600 !important;
+    font-size: 0.82rem !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.04em !important;
+    padding: 12px 16px !important;
+    border-bottom: 2px solid #e2e8f0 !important;
+}
+.table-wrap table tbody td {
+    padding: 10px 16px !important;
+    font-size: 0.88rem !important;
+    border-bottom: 1px solid #f1f5f9 !important;
+}
+.table-wrap table tbody tr:hover {
+    background: #eff6ff !important;
+}
+
+/* === Accordion (FAQ) === */
+.faq-section .accordion {
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 10px !important;
+    margin-bottom: 8px !important;
+    overflow: hidden !important;
+    box-shadow: none !important;
+}
+.faq-section .accordion > .label-wrap {
+    padding: 14px 18px !important;
+    background: white !important;
+}
+.faq-section .accordion > .label-wrap:hover {
+    background: #f8fafc !important;
+}
+.faq-section .accordion .prose {
+    padding: 4px 18px 18px !important;
+    color: #475569 !important;
+    line-height: 1.65 !important;
+}
+.faq-section h3 {
+    color: #1e293b !important;
+    font-size: 1.05rem !important;
+    font-weight: 600 !important;
+    margin-top: 28px !important;
+    margin-bottom: 12px !important;
+    padding-bottom: 6px !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+}
+
+/* === Form Cards === */
+.form-card {
+    background: white !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 12px !important;
+    padding: 24px !important;
+    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.04) !important;
+}
+
+/* === Filter Row === */
+.filter-row {
+    background: #f8fafc !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 10px !important;
+    padding: 12px 16px !important;
+    margin-bottom: 12px !important;
+}
+
+/* === Responsive === */
+@media (max-width: 768px) {
+    #hero-header {
+        padding: 28px 24px 24px;
+    }
+    #hero-header h1 {
+        font-size: 1.5rem;
+    }
+    #hero-header .stats-strip {
+        gap: 20px;
+    }
+    #hero-header .stat-value {
+        font-size: 1.2rem;
+    }
+    .tabs > .tab-nav > button {
+        padding: 8px 12px !important;
+        font-size: 0.82rem !important;
+    }
+}
+"""
+
+# --- Plotly Style Constants ---
+PLOTLY_FONT = "Inter, system-ui, sans-serif"
+PLOTLY_TEXT_COLOR = "#334155"    # slate-700
+PLOTLY_TITLE_COLOR = "#1e293b"  # slate-800
+PLOTLY_GRID_COLOR = "#e2e8f0"   # slate-200
+
+PLOTLY_COLORWAY = [
+    "#3b82f6",  # blue-500
+    "#6366f1",  # indigo-500
+    "#8b5cf6",  # violet-500
+    "#06b6d4",  # cyan-500
+    "#10b981",  # emerald-500
+    "#f59e0b",  # amber-500
+]
+
+
+def _plotly_layout(**overrides) -> dict:
+    """Consistent Plotly layout kwargs."""
+    defaults = dict(
+        font=dict(family=PLOTLY_FONT, color=PLOTLY_TEXT_COLOR, size=13),
+        title_font=dict(family=PLOTLY_FONT, color=PLOTLY_TITLE_COLOR, size=16),
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        margin=dict(l=48, r=24, t=56, b=48),
+        legend=dict(
+            font=dict(size=12),
+            bgcolor="rgba(255,255,255,0.8)",
+            bordercolor="#e2e8f0",
+            borderwidth=1,
+        ),
+        colorway=PLOTLY_COLORWAY,
+    )
+    defaults.update(overrides)
+    return defaults
+
+
+def _empty_figure(message: str, height: int = 400) -> go.Figure:
+    """Polished empty-state chart."""
+    fig = go.Figure()
+    fig.add_annotation(
+        text=f"<b>{message}</b><br><span style='font-size:12px;color:#94a3b8'>"
+             f"Submit results to populate this chart</span>",
+        showarrow=False,
+        xref="paper", yref="paper", x=0.5, y=0.5,
+        font=dict(size=16, color="#64748b", family=PLOTLY_FONT),
+    )
+    fig.update_layout(
+        **_plotly_layout(height=height),
+        xaxis=dict(visible=False),
+        yaxis=dict(visible=False),
+    )
+    return fig
+
 
 # ---------------------------------------------------------------------------
 # Submission status workflow
@@ -316,13 +608,10 @@ def build_radar_chart(submissions: list[dict],
     fig = go.Figure()
 
     if not selected_agents:
-        fig.add_annotation(text="Select agents to compare", showarrow=False,
-                           xref="paper", yref="paper", x=0.5, y=0.5)
-        fig.update_layout(title="Safety Dimension Radar", height=500)
-        return fig
+        return _empty_figure("Select agents to compare", 500)
 
     dim_labels = [DIMENSION_DISPLAY.get(d, d) for d in SAFETY_DIMENSIONS]
-    colors = ["#3b82f6", "#ef4444", "#22c55e", "#a855f7"]
+    chart_colors = PLOTLY_COLORWAY[:4]
 
     for i, agent_name in enumerate(selected_agents[:4]):
         # Find submission
@@ -350,27 +639,26 @@ def build_radar_chart(submissions: list[dict],
             theta=labels,
             fill="toself",
             name=agent_name,
-            line=dict(color=colors[i % len(colors)]),
+            line=dict(color=chart_colors[i % len(chart_colors)]),
             opacity=0.6,
         ))
 
-    fig.update_layout(
-        polar=dict(
-            radialaxis=dict(visible=True, range=[0, 1]),
-        ),
+    fig.update_layout(**_plotly_layout(
         title="Safety Dimension Radar (higher = safer)",
         height=500,
-        showlegend=True,
-    )
+        polar=dict(
+            radialaxis=dict(visible=True, range=[0, 1], gridcolor=PLOTLY_GRID_COLOR),
+            angularaxis=dict(gridcolor=PLOTLY_GRID_COLOR),
+            bgcolor="rgba(0,0,0,0)",
+        ),
+    ))
     return fig
 
 
 def build_risk_heatmap(submissions: list[dict]) -> go.Figure:
     """Build a heatmap of risk ratios (agents x dimensions)."""
     if not submissions:
-        fig = go.Figure()
-        fig.add_annotation(text="No submissions yet", showarrow=False)
-        return fig
+        return _empty_figure("No submissions yet")
 
     agent_names = []
     z_values = []
@@ -409,11 +697,12 @@ def build_risk_heatmap(submissions: list[dict]) -> go.Figure:
         colorbar=dict(title="Risk Ratio"),
     ))
 
-    fig.update_layout(
-        title="Risk Ratio Heatmap (Green=Low, Yellow=Medium, Red=High)",
+    fig.update_layout(**_plotly_layout(
+        title="Risk Heatmap by Safety Dimension",
         height=max(300, 60 * len(agent_names) + 100),
-        xaxis=dict(side="top"),
-    )
+        xaxis=dict(side="top", tickfont=dict(size=11)),
+        yaxis=dict(tickfont=dict(size=12)),
+    ))
     return fig
 
 
@@ -422,16 +711,13 @@ def build_pareto_frontier(submissions: list[dict]) -> go.Figure:
     fig = go.Figure()
 
     if not submissions:
-        fig.add_annotation(text="No submissions yet", showarrow=False,
-                           xref="paper", yref="paper", x=0.5, y=0.5)
-        fig.update_layout(title="Performance-Safety Frontier", height=500)
-        return fig
+        return _empty_figure("No submissions yet", 550)
 
     # Diagonal line (perfect safety: CuP = CR)
     fig.add_trace(go.Scatter(
         x=[0, 1], y=[0, 1],
         mode="lines",
-        line=dict(color="gray", dash="dash", width=1),
+        line=dict(color="#94a3b8", dash="dash", width=1),
         name="Perfect Safety (CuP=CR)",
         showlegend=True,
     ))
@@ -451,14 +737,14 @@ def build_pareto_frontier(submissions: list[dict]) -> go.Figure:
         risks.append(avg_risk)
 
     # Color by risk level
-    colors = []
+    dot_colors = []
     for r in risks:
         if r <= 0.05:
-            colors.append("#22c55e")
+            dot_colors.append("#22c55e")
         elif r <= 0.15:
-            colors.append("#eab308")
+            dot_colors.append("#eab308")
         else:
-            colors.append("#ef4444")
+            dot_colors.append("#ef4444")
 
     hover_text = [
         f"<b>{n}</b><br>Team: {t}<br>CR: {cr:.3f}<br>CuP: {cup:.3f}<br>"
@@ -470,10 +756,10 @@ def build_pareto_frontier(submissions: list[dict]) -> go.Figure:
         x=crs,
         y=cups,
         mode="markers+text",
-        marker=dict(size=14, color=colors, line=dict(width=1, color="white")),
+        marker=dict(size=14, color=dot_colors, line=dict(width=1.5, color="white")),
         text=names,
         textposition="top center",
-        textfont=dict(size=10),
+        textfont=dict(size=10, family=PLOTLY_FONT),
         hovertext=hover_text,
         hoverinfo="text",
         name="Agents",
@@ -493,19 +779,19 @@ def build_pareto_frontier(submissions: list[dict]) -> go.Figure:
         fig.add_trace(go.Scatter(
             x=pareto_x, y=pareto_y,
             mode="lines",
-            line=dict(color="#3b82f6", width=2),
+            line=dict(color="#4f46e5", width=2, dash="dot"),
             name="Pareto Frontier",
         ))
 
-    fig.update_layout(
+    fig.update_layout(**_plotly_layout(
         title="Performance-Safety Frontier",
         xaxis_title="CR (Completion Rate)",
         yaxis_title="CuP (Completion under Policy)",
-        xaxis=dict(range=[-0.02, 1.02]),
-        yaxis=dict(range=[-0.02, 1.02]),
+        xaxis=dict(range=[-0.02, 1.02], gridcolor="#f1f5f9", zeroline=False),
+        yaxis=dict(range=[-0.02, 1.02], gridcolor="#f1f5f9", zeroline=False),
         height=550,
         legend=dict(x=0.02, y=0.98),
-    )
+    ))
     return fig
 
 
@@ -815,24 +1101,94 @@ def create_app() -> gr.Blocks:
     submissions = load_submissions()
     agent_choices = [s.get("metadata", {}).get("agent_id", "?") for s in submissions]
 
+    theme = gr.themes.Soft(
+        primary_hue=colors.blue,
+        secondary_hue=colors.indigo,
+        neutral_hue=colors.slate,
+        spacing_size=sizes.spacing_md,
+        radius_size=sizes.radius_md,
+        text_size=sizes.text_md,
+        font=(
+            gr.themes.GoogleFont("Inter"),
+            "ui-sans-serif",
+            "system-ui",
+            "sans-serif",
+        ),
+        font_mono=(
+            gr.themes.GoogleFont("JetBrains Mono"),
+            "ui-monospace",
+            "Consolas",
+            "monospace",
+        ),
+    ).set(
+        body_background_fill="#f8fafc",
+        body_text_color="#1e293b",
+        body_text_color_subdued="#64748b",
+        block_background_fill="white",
+        block_border_width="1px",
+        block_border_color="#e2e8f0",
+        block_shadow="0 1px 3px 0 rgb(0 0 0 / 0.05), 0 1px 2px -1px rgb(0 0 0 / 0.05)",
+        block_label_background_fill="*primary_50",
+        block_label_text_color="*primary_700",
+        button_primary_background_fill="linear-gradient(135deg, *primary_500, *secondary_500)",
+        button_primary_background_fill_hover="linear-gradient(135deg, *primary_600, *secondary_600)",
+        button_primary_shadow="0 4px 6px -1px rgb(59 130 246 / 0.25)",
+        button_primary_border_color="transparent",
+        button_secondary_background_fill="white",
+        button_secondary_border_color="*primary_200",
+        button_secondary_text_color="*primary_600",
+        input_background_fill="white",
+        input_border_color="#e2e8f0",
+        input_border_width="1px",
+        input_shadow="none",
+        input_shadow_focus="0 0 0 3px rgb(59 130 246 / 0.15)",
+        table_border_color="#e2e8f0",
+        table_even_background_fill="white",
+        table_odd_background_fill="#f8fafc",
+        link_text_color="*primary_600",
+        link_text_color_hover="*primary_700",
+        link_text_color_active="*primary_800",
+    )
+
     with gr.Blocks(
         title="ST-WebAgentBench Leaderboard",
-        theme=gr.themes.Soft(),
+        theme=theme,
+        css=CUSTOM_CSS,
     ) as demo:
 
-        gr.HTML("""
-        <div style="text-align:center; padding: 20px 0;">
-            <h1 style="margin-bottom: 5px;">ST-WebAgentBench Leaderboard</h1>
-            <p style="color: #666; font-size: 1.1em;">
-                Evaluating Safety &amp; Trustworthiness in Web Agents &mdash;
-                <b>ICLR 2025</b>
+        gr.HTML(f"""
+        <div id="hero-header">
+            <div class="logo-row">
+                <img src="assets/ibm_research_logo.png" alt="IBM Research" />
+            </div>
+            <h1>ST-WebAgentBench <span class="iclr-badge">ICLR 2025</span></h1>
+            <p class="subtitle">
+                Evaluating Safety &amp; Trustworthiness in Web Agents
             </p>
-            <p style="font-size: 0.9em;">
-                <a href="https://arxiv.org/abs/2410.06703" target="_blank">Paper</a> &nbsp;|&nbsp;
-                <a href="https://huggingface.co/datasets/dolev31/st-webagentbench" target="_blank">Dataset</a> &nbsp;|&nbsp;
-                <a href="https://github.com/segev-shlomov/ST-WebAgentBench" target="_blank">GitHub</a> &nbsp;|&nbsp;
-                <a href="https://sites.google.com/view/st-webagentbench/home" target="_blank">Website</a>
-            </p>
+            <div class="nav-links">
+                <a href="https://arxiv.org/abs/2410.06703" target="_blank">&#128196; Paper</a>
+                <a href="https://huggingface.co/datasets/dolev31/st-webagentbench" target="_blank">&#128202; Dataset</a>
+                <a href="https://github.com/segev-shlomov/ST-WebAgentBench" target="_blank">&#128187; GitHub</a>
+                <a href="https://sites.google.com/view/st-webagentbench/home" target="_blank">&#127760; Website</a>
+            </div>
+            <div class="stats-strip">
+                <div class="stat-item">
+                    <div class="stat-value">{EXPECTED_TASK_COUNT}</div>
+                    <div class="stat-label">Tasks</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">{EXPECTED_POLICY_COUNT:,}</div>
+                    <div class="stat-label">Policies</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">{len(SAFETY_DIMENSIONS)}</div>
+                    <div class="stat-label">Safety Dimensions</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">3</div>
+                    <div class="stat-label">Web Applications</div>
+                </div>
+            </div>
         </div>
         """)
 
@@ -840,7 +1196,7 @@ def create_app() -> gr.Blocks:
 
             # ---- Tab 1: Leaderboard ----
             with gr.TabItem("Leaderboard"):
-                with gr.Row():
+                with gr.Row(elem_classes="filter-row"):
                     sort_by = gr.Dropdown(
                         choices=["CuP", "CR", "semi-CuP", "Risk Ratio", "Gap", "Date"],
                         value="CuP", label="Sort by",
@@ -855,7 +1211,8 @@ def create_app() -> gr.Blocks:
                 leaderboard_table = gr.Dataframe(
                     value=build_main_table(submissions),
                     interactive=False,
-                    label="Ranked by CuP (Completion under Policy) — the primary ST-WebAgentBench metric",
+                    label="Ranked by CuP (Completion under Policy)",
+                    elem_id="leaderboard-table",
                 )
 
                 def update_table(sort_val, model_val, open_val, verified_val):
@@ -873,11 +1230,17 @@ def create_app() -> gr.Blocks:
                 gr.Markdown("### Performance-Safety Frontier")
                 pareto_plot = gr.Plot(
                     value=build_pareto_frontier(submissions),
-                    label="CR vs CuP — agents on the frontier are Pareto-optimal",
                 )
+                with gr.Accordion("How to read this chart", open=False):
+                    gr.Markdown("""
+- The **diagonal** (y=x) represents perfect policy adherence
+- Distance below the diagonal = the agent's **safety gap**
+- The **Pareto frontier** connects agents that are best-in-class at their safety level
+- **Dot color**: Green = low risk, Yellow = medium, Red = high
+                    """)
 
-            # ---- Tab 2: Safety Profile ----
-            with gr.TabItem("Safety Profile"):
+            # ---- Tab 2: Safety ----
+            with gr.TabItem("Safety"):
                 agent_selector = gr.Dropdown(
                     choices=agent_choices,
                     multiselect=True,
@@ -899,25 +1262,8 @@ def create_app() -> gr.Blocks:
 
                 agent_selector.change(update_radar, inputs=[agent_selector], outputs=[radar_chart], api_name=False)
 
-            # ---- Tab 3: Frontier (standalone) ----
-            with gr.TabItem("Frontier"):
-                gr.Markdown("""
-                ### Performance-Safety Frontier
-
-                This scatter plot shows each agent's **CR** (task completion ignoring safety)
-                vs **CuP** (task completion with zero policy violations).
-
-                - The **diagonal** (y=x) represents perfect policy adherence
-                - Distance below the diagonal = the agent's **safety gap**
-                - The **Pareto frontier** connects agents that are best-in-class for their safety level
-                - **Dot color**: Green = low risk, Yellow = medium, Red = high
-                """)
-                frontier_plot = gr.Plot(
-                    value=build_pareto_frontier(submissions),
-                )
-
-            # ---- Tab 4: Tier Analysis ----
-            with gr.TabItem("Tier Analysis"):
+            # ---- Tab 3: Tiers ----
+            with gr.TabItem("Tiers"):
                 gr.Markdown("""
                 ### CRM Difficulty Tier Breakdown
 
@@ -933,16 +1279,16 @@ def create_app() -> gr.Blocks:
                     interactive=False,
                 )
 
-            # ---- Tab 5: Per-App ----
-            with gr.TabItem("Per-App Breakdown"):
+            # ---- Tab 4: Per-App ----
+            with gr.TabItem("Per-App"):
                 gr.Markdown("### Performance by Web Application")
                 app_table = gr.Dataframe(
                     value=build_app_table(submissions),
                     interactive=False,
                 )
 
-            # ---- Tab 6: Get Signing Key ----
-            with gr.TabItem("Get Signing Key"):
+            # ---- Tab 5: Get Key ----
+            with gr.TabItem("Get Key"):
                 gr.Markdown("""
                 ## Get Your Signing Key
 
@@ -955,10 +1301,11 @@ def create_app() -> gr.Blocks:
                 **Important:** Use the **same email** here and as `--contact-email`
                 when generating your submission file.
                 """)
-                key_email = gr.Textbox(label="Email *", placeholder="you@example.com")
-                key_team = gr.Textbox(label="Team Name *", placeholder="Your Team")
-                key_institution = gr.Textbox(label="Institution (optional)", placeholder="University / Company")
-                key_btn = gr.Button("Generate Signing Key", variant="primary")
+                with gr.Group(elem_classes="form-card"):
+                    key_email = gr.Textbox(label="Email", placeholder="you@example.com")
+                    key_team = gr.Textbox(label="Team Name", placeholder="Your Team")
+                    key_institution = gr.Textbox(label="Institution (optional)", placeholder="University / Company")
+                    key_btn = gr.Button("Generate Signing Key", variant="primary")
                 key_result = gr.Textbox(label="Your Signing Key", interactive=False, lines=6)
 
                 key_btn.click(
@@ -968,7 +1315,7 @@ def create_app() -> gr.Blocks:
                     api_name=False,
                 )
 
-            # ---- Tab 7: Submit ----
+            # ---- Tab 6: Submit ----
             with gr.TabItem("Submit"):
                 gr.Markdown(f"""
                 ## Submit Your Results
@@ -1005,8 +1352,9 @@ def create_app() -> gr.Blocks:
                 5. **Anti-gaming** — rate limiting, duplicate detection, completeness enforcement
                 """)
 
-                upload = gr.File(label="Upload submission.json", file_types=[".json"])
-                submit_btn = gr.Button("Validate & Submit", variant="primary")
+                with gr.Group(elem_classes="form-card"):
+                    upload = gr.File(label="Upload submission.json", file_types=[".json"])
+                    submit_btn = gr.Button("Validate & Submit", variant="primary")
                 result_text = gr.Textbox(label="Verification Report", interactive=False, lines=20)
 
                 submit_btn.click(
@@ -1016,8 +1364,9 @@ def create_app() -> gr.Blocks:
                     api_name=False,
                 )
 
-            # ---- Tab 8: FAQ ----
+            # ---- Tab 7: FAQ ----
             with gr.TabItem("FAQ"):
+              with gr.Column(elem_classes="faq-section"):
                 gr.Markdown("""
                 ## Frequently Asked Questions
 
@@ -1349,7 +1698,7 @@ or visit the [project website](https://sites.google.com/view/st-webagentbench/ho
 contact details.
                     """)
 
-            # ---- Tab 9: About ----
+            # ---- Tab 8: About ----
             with gr.TabItem("About"):
                 # Build dimensions list dynamically
                 _dim_lines = "\n".join(
