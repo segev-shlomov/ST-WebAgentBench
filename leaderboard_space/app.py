@@ -1391,50 +1391,48 @@ contact details.
                     "- [Project Website](https://sites.google.com/view/st-webagentbench/home)"
                 )
 
-                # Hidden admin gate at bottom of About tab
-                with gr.Accordion("Maintainer Access", open=False, visible=True):
+                # Admin gate — all admin UI lives inside About tab, hidden by default
+                with gr.Accordion("Maintainer Access", open=False):
                     admin_login_pw = gr.Textbox(label="Password", type="password")
                     admin_login_btn = gr.Button("Login", size="sm")
                     admin_login_msg = gr.Textbox(label="Status", interactive=False, lines=1)
 
-            # ---- Hidden admin panel (not a visible tab) ----
-            # Access via password gate only — no "Admin" tab shown to users.
-            with gr.TabItem("Admin", visible=False) as admin_tab:
-                gr.Markdown("### Administration")
+                    # Admin controls — hidden until login succeeds
+                    with gr.Column(visible=False) as admin_panel:
+                        gr.Markdown("---")
 
-                with gr.Accordion("Remove Submission", open=True):
-                    admin_agent_id = gr.Textbox(label="Agent ID to remove")
-                    admin_password = gr.Textbox(label="Admin Password", type="password")
-                    admin_btn = gr.Button("Remove Submission", variant="stop")
-                    admin_result = gr.Textbox(label="Result", interactive=False, lines=3)
+                        with gr.Accordion("Remove Submission", open=True):
+                            admin_agent_id = gr.Textbox(label="Agent ID to remove")
+                            admin_password = gr.Textbox(label="Admin Password", type="password")
+                            admin_btn = gr.Button("Remove Submission", variant="stop")
+                            admin_result = gr.Textbox(label="Result", interactive=False, lines=3)
 
-                    admin_btn.click(
-                        admin_remove_submission,
-                        inputs=[admin_agent_id, admin_password],
-                        outputs=[admin_result],
+                            admin_btn.click(
+                                admin_remove_submission,
+                                inputs=[admin_agent_id, admin_password],
+                                outputs=[admin_result],
+                                api_name=False,
+                            )
+
+                        with gr.Accordion("Key Request Log", open=False):
+                            gr.Markdown("View all signing key requests (email, team, institution, timestamp).")
+                            admin_key_password = gr.Textbox(label="Admin Password", type="password")
+                            admin_key_btn = gr.Button("View Key Requests")
+                            admin_key_log = gr.Textbox(label="Key Requests", interactive=False, lines=20)
+
+                            admin_key_btn.click(
+                                admin_view_key_requests,
+                                inputs=[admin_key_password],
+                                outputs=[admin_key_log],
+                                api_name=False,
+                            )
+
+                    admin_login_btn.click(
+                        admin_login,
+                        inputs=[admin_login_pw],
+                        outputs=[admin_panel, admin_login_msg],
                         api_name=False,
                     )
-
-                with gr.Accordion("Key Request Log", open=False):
-                    gr.Markdown("View all signing key requests (email, team, institution, timestamp).")
-                    admin_key_password = gr.Textbox(label="Admin Password", type="password")
-                    admin_key_btn = gr.Button("View Key Requests")
-                    admin_key_log = gr.Textbox(label="Key Requests", interactive=False, lines=20)
-
-                    admin_key_btn.click(
-                        admin_view_key_requests,
-                        inputs=[admin_key_password],
-                        outputs=[admin_key_log],
-                        api_name=False,
-                    )
-
-            # Wire admin login button (must be after admin_tab is defined)
-            admin_login_btn.click(
-                admin_login,
-                inputs=[admin_login_pw],
-                outputs=[admin_tab, admin_login_msg],
-                api_name=False,
-            )
 
     return demo
 
