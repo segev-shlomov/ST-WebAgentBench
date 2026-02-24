@@ -472,7 +472,7 @@ CUSTOM_CSS = """
     margin-bottom: 12px;
 }
 #hero-header .logo-row img {
-    height: 40px;
+    height: 64px;
     filter: brightness(0) invert(1);
     opacity: 0.9;
 }
@@ -509,49 +509,39 @@ CUSTOM_CSS = """
 }
 
 /* === Tables (Dataframe) === */
-.table-wrap,
-#leaderboard-table .table-wrap,
-#leaderboard-table [class*="table"] {
+/* Container styling */
+.table-wrap {
     border-radius: 12px !important;
-    overflow-x: auto !important;
     border: 1px solid #e2e8f0 !important;
 }
-.table-wrap table,
-#leaderboard-table table {
-    border-collapse: collapse !important;
+/* Override Gradio 6 internal: force nowrap on header text */
+.header-content {
+    white-space: nowrap !important;
+    overflow-wrap: normal !important;
+    word-break: normal !important;
 }
-.table-wrap table thead th,
-#leaderboard-table table thead th,
-#leaderboard-table th {
+/* Override Gradio 6 internal: use auto layout instead of fixed */
+table :is(thead, tfoot, tbody) {
+    table-layout: auto !important;
+}
+/* Header cell styling */
+table thead th {
     background: #f1f5f9 !important;
     color: #334155 !important;
     font-weight: 600 !important;
     font-size: 0.82rem !important;
     text-transform: uppercase !important;
     letter-spacing: 0.04em !important;
-    padding: 12px 16px !important;
     border-bottom: 2px solid #e2e8f0 !important;
-    white-space: nowrap !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
 }
-.table-wrap table tbody td,
-#leaderboard-table table tbody td,
-#leaderboard-table td {
-    padding: 10px 16px !important;
+/* Data cell styling */
+table tbody td {
     font-size: 0.88rem !important;
     border-bottom: 1px solid #f1f5f9 !important;
-    white-space: nowrap !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
 }
-.table-wrap table tbody tr:hover,
-#leaderboard-table table tbody tr:hover {
+/* Row hover */
+table tbody tr:hover {
     background: #eff6ff !important;
-}
-/* Force horizontal layout for Gradio 6 dataframe cells */
-#leaderboard-table .cell-wrap {
-    white-space: nowrap !important;
 }
 
 /* === Accordion (FAQ) === */
@@ -594,12 +584,23 @@ CUSTOM_CSS = """
 }
 
 /* === Filter Row === */
+/* === Filter Row === */
 .filter-row {
     background: #f8fafc !important;
     border: 1px solid #e2e8f0 !important;
-    border-radius: 10px !important;
-    padding: 12px 16px !important;
-    margin-bottom: 12px !important;
+    border-radius: 12px !important;
+    padding: 16px 20px !important;
+    margin-bottom: 16px !important;
+    display: flex !important;
+    align-items: end !important;
+    gap: 16px !important;
+}
+.filter-row > div {
+    flex: 1 !important;
+    min-width: 0 !important;
+}
+.filter-row .wrap {
+    gap: 4px !important;
 }
 
 /* === Responsive === */
