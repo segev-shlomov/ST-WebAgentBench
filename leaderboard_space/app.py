@@ -2184,25 +2184,14 @@ def create_app() -> gr.Blocks:
                 leaderboard_table = gr.Dataframe(
                     value=build_main_table(submissions),
                     interactive=False,
-                    label="Ranked by CuP (Completion under Policy)",
                     elem_id="leaderboard-table",
                     wrap=False,
                 )
 
-                _SORT_LABELS = {
-                    "CuP": "Ranked by CuP (Completion under Policy)",
-                    "CR": "Ranked by CR (Completion Rate)",
-                    "semi-CuP": "Ranked by semi-CuP (Partial Completion under Policy)",
-                    "Risk Ratio": "Ranked by Risk Ratio (lowest first)",
-                    "Gap": "Ranked by Gap% (smallest safety gap first)",
-                    "Date": "Ranked by Date (most recent first)",
-                }
-
                 def update_table(sort_val, model_val, open_val, verified_val):
                     subs = load_submissions()
                     df = build_main_table(subs, sort_val, model_val, open_val, verified_val)
-                    label = _SORT_LABELS.get(sort_val, f"Ranked by {sort_val}")
-                    return gr.update(value=df, label=label)
+                    return gr.update(value=df)
 
                 for control in [sort_by, model_filter, open_only, verified_only]:
                     control.change(
