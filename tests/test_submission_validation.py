@@ -71,9 +71,9 @@ class TestLegitimateSubmission:
         assert sub.results.metrics.CR > 0
         assert sub.results.metrics.CuP > 0
 
-    def test_has_all_295_tasks(self, legit_submission):
+    def test_has_all_375_tasks(self, legit_submission):
         task_ids = {te.task_id for te in legit_submission.task_evidence}
-        assert len(task_ids) == 295
+        assert len(task_ids) == 375
 
     def test_cup_does_not_exceed_cr(self, legit_submission):
         m = legit_submission.results.metrics
@@ -189,8 +189,8 @@ class TestAdversarialSubmission:
         assert len(hash_errors) > 0, "Should detect tampered code hashes"
 
     def test_attack_5_missing_tasks(self, adv_data):
-        """Attack #5: Only 290 tasks submitted (missing 5)."""
-        assert len(adv_data["task_evidence"]) == 290
+        """Attack #5: Only 370 tasks submitted (missing 5)."""
+        assert len(adv_data["task_evidence"]) == 370
 
     def test_attack_5_detected_by_structural_validation(self, adv_data):
         """Missing tasks should be caught."""
@@ -225,7 +225,7 @@ class TestAdversarialSubmission:
         assert len(xss_errors) > 0, "Should detect XSS in metadata"
 
     def test_attack_7_timing_anomalies(self, adv_data):
-        """Attack #7: 295 tasks in 10 minutes — impossibly fast."""
+        """Attack #7: 375 tasks in 10 minutes — impossibly fast."""
         from stwebagentbench.leaderboard.schema import Submission
         try:
             sub = Submission(**adv_data)
@@ -286,8 +286,8 @@ class TestAdversarialSubmission:
 
         from stwebagentbench.leaderboard.validate import recompute_metrics_from_evidence
         discrepancies = recompute_metrics_from_evidence(sub)
-        # The adversarial submission claims CR=0.80 but only 290 tasks, all with reward=1.0
-        # Recomputed: 290/290=1.0 or if missing tasks counted as 0: 290/295 ≈ 0.983
+        # The adversarial submission claims CR=0.80 but only 370 tasks, all with reward=1.0
+        # Recomputed: 370/370=1.0 or if missing tasks counted as 0: 370/375 ≈ 0.987
         # Either way, 0.80 != actual
         cr_disc = [d for d in discrepancies if "CR mismatch" in d]
         assert len(cr_disc) > 0, \
@@ -303,7 +303,7 @@ class TestAdversarialSubmission:
 
         from stwebagentbench.leaderboard.validate import validate_anti_gaming
         issues = validate_anti_gaming(sub, submission_history=[])
-        completeness = [i for i in issues if "295" in i]
+        completeness = [i for i in issues if "375" in i]
         assert len(completeness) > 0, "Should reject incomplete submission"
 
     def test_adversarial_total_attacks_caught(self, adv_data):
@@ -491,6 +491,81 @@ class TestHMACSigning:
         hmac_errors = [e for e in errors if "HMAC" in e or "hmac" in e]
         assert len(hmac_errors) == 0, \
             f"Should not enforce HMAC without key. Errors: {hmac_errors}"
+
+    def test_per_user_key_derivation(self):
+        """Per-user keys should be deterministic and email-normalised."""
+        import sys
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "leaderboard_space"))
+
+        import os
+        os.environ["ST_BENCH_MASTER_KEY"] = "test-master-secret"
+        try:
+            from leaderboard_space.app import derive_user_key
+
+            key1 = derive_user_key("Alice@Example.COM")
+            key2 = derive_user_key("alice@example.com")
+            key3 = derive_user_key("  Alice@Example.COM  ")
+            assert key1 == key2 == key3, "Keys should be the same after normalisation"
+            assert len(key1) == 64, "Key should be a SHA256 hex digest"
+
+            # Different email → different key
+            key_other = derive_user_key("bob@example.com")
+            assert key_other != key1, "Different emails should produce different keys"
+        finally:
+            os.environ.pop("ST_BENCH_MASTER_KEY", None)
+
+    def test_per_user_key_roundtrip(self, legit_data):
+        """Signing with a derived user key and verifying with the same derivation should work."""
+        import copy
+        import os
+        import sys
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "leaderboard_space"))
+
+        os.environ["ST_BENCH_MASTER_KEY"] = "test-master-secret"
+        try:
+            from leaderboard_space.app import derive_user_key
+            from stwebagentbench.leaderboard.integrity import (
+                IntegrityManifest,
+                compute_hmac_signature,
+            )
+            from validation.validate import validate_submission
+
+            email = "researcher@university.edu"
+            user_key = derive_user_key(email)
+
+            # Sign the submission with the derived key
+            data = copy.deepcopy(legit_data)
+            manifest = IntegrityManifest(
+                run_id=data["integrity"]["run_id"],
+                benchmark_version=data["integrity"]["benchmark_version"],
+                timestamp_start=data["integrity"]["timestamp_start"],
+                timestamp_end=data["integrity"]["timestamp_end"],
+                evaluators_sha256=data["integrity"]["evaluators_sha256"],
+                task_config_sha256=data["integrity"]["task_config_sha256"],
+                custom_env_sha256=data["integrity"]["custom_env_sha256"],
+                helper_functions_sha256=data["integrity"]["helper_functions_sha256"],
+                task_hashes=data["integrity"]["task_hashes"],
+            )
+            data["integrity"]["hmac_signature"] = compute_hmac_signature(manifest, user_key)
+
+            from stwebagentbench.leaderboard.schema import Submission
+            sub = Submission(**data)
+
+            # Verify with the same derived key (as the Space would do)
+            server_key = derive_user_key(email)
+            errors = validate_submission(sub, signing_key=server_key)
+            hmac_errors = [e for e in errors if "HMAC" in e or "hmac" in e]
+            assert len(hmac_errors) == 0, \
+                f"Roundtrip should succeed. HMAC errors: {hmac_errors}"
+
+            # Wrong email → wrong key → HMAC fails
+            wrong_key = derive_user_key("someone-else@example.com")
+            errors = validate_submission(sub, signing_key=wrong_key)
+            hmac_errors = [e for e in errors if "HMAC" in e or "hmac" in e]
+            assert len(hmac_errors) > 0, \
+                "Wrong email should produce wrong key and fail HMAC"
+        finally:
+            os.environ.pop("ST_BENCH_MASTER_KEY", None)
 
 
 # ---------------------------------------------------------------------------

@@ -524,7 +524,7 @@ def validate_anti_gaming(
     """
     issues: List[str] = []
 
-    # 1. Completeness (all 295 tasks)
+    # 1. Completeness (all tasks)
     submitted_count = len({te.task_id for te in submission.task_evidence})
     if submitted_count < EXPECTED_TASK_COUNT:
         issues.append(

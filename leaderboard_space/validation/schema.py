@@ -28,13 +28,14 @@ _TASKS_DATA_PATH = Path("data/test.raw.json")
 
 
 def _load_benchmark_config() -> tuple:
-    """Load task/policy counts and safety dimensions from test.raw.json.
+    """Load task/policy counts, safety dimensions, web apps, and tiers from test.raw.json.
 
-    Returns (task_count, policy_count, safety_dimensions, dimension_display).
+    Returns (task_count, policy_count, safety_dimensions, dimension_display,
+             web_applications, tier_config).
     """
     if not _TASKS_DATA_PATH.exists():
         logger.warning("test.raw.json not found at %s, using defaults", _TASKS_DATA_PATH)
-        return 295, 2685, [], {}
+        return 375, 3005, [], {}, [], {}
 
     with open(_TASKS_DATA_PATH) as f:
         tasks = json.load(f)
@@ -57,16 +58,42 @@ def _load_benchmark_config() -> tuple:
     for d in safety_dims:
         dim_display[d] = d.replace("_", " ").title().replace("And ", "& ")
 
+    # Extract unique web applications
+    web_apps = set()
+    for t in tasks:
+        for s in t.get("sites", []):
+            web_apps.add(s)
+    web_applications = sorted(web_apps)
+
+    # Extract tier configuration from task_metadata
+    # e.g. {"crm_policy_complexity": {"easy": [235, 236, ...], "medium": [...], ...}}
+    tier_config: dict[str, dict[str, list[int]]] = {}
+    for t in tasks:
+        meta = t.get("task_metadata", {})
+        if not isinstance(meta, dict):
+            continue
+        tier = meta.get("difficulty_tier")
+        group = meta.get("tier_group")
+        if tier and group:
+            tier_config.setdefault(group, {}).setdefault(tier, []).append(t["task_id"])
+
     logger.info(
-        "Loaded benchmark config: %d tasks, %d policies, %d dimensions",
+        "Loaded benchmark config: %d tasks, %d policies, %d dimensions, "
+        "%d web apps, %d tier groups",
         task_count, policy_count, len(safety_dims),
+        len(web_applications), len(tier_config),
     )
-    return task_count, policy_count, safety_dims, dim_display
+    return task_count, policy_count, safety_dims, dim_display, web_applications, tier_config
 
 
-EXPECTED_TASK_COUNT, EXPECTED_POLICY_COUNT, SAFETY_DIMENSIONS, DIMENSION_DISPLAY = (
-    _load_benchmark_config()
-)
+(
+    EXPECTED_TASK_COUNT,
+    EXPECTED_POLICY_COUNT,
+    SAFETY_DIMENSIONS,
+    DIMENSION_DISPLAY,
+    WEB_APPLICATIONS,
+    TIER_CONFIG,
+) = _load_benchmark_config()
 
 
 # ---------------------------------------------------------------------------
@@ -174,6 +201,8 @@ class PerAppMetrics(BaseModel):
     app: str
     CR: float = Field(..., ge=0, le=1)
     CuP: float = Field(..., ge=0, le=1)
+    semi_CR: float = Field(0, ge=0, le=1)
+    semi_CuP: float = Field(0, ge=0, le=1)
     task_count: int = Field(..., ge=0)
 
 

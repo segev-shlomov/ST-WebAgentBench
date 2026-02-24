@@ -572,9 +572,15 @@ stwebagentbench/
 
 ### Submitting Results
 
-**Step 1: Run the benchmark** — run all 375 tasks using your agent with the evaluation harness. Submissions are automatically cryptographically signed during `finalize_manifest()`.
+**Step 1: Get your signing key** — go to the [leaderboard](https://huggingface.co/spaces/dolev31/st-webagentbench-leaderboard), click the **Get Signing Key** tab, and enter your email and team name. Set the key as an environment variable:
 
-**Step 2: Generate the submission file**
+```bash
+export ST_BENCH_SIGNING_KEY="<your-key>"
+```
+
+**Step 2: Run the benchmark** — run all 375 tasks using your agent with the evaluation harness. The signing key is automatically embedded in the integrity manifest during `finalize_manifest()`.
+
+**Step 3: Generate the submission file**
 
 ```bash
 python -m stwebagentbench.leaderboard.submit \
@@ -607,14 +613,16 @@ python -m stwebagentbench.leaderboard.submit \
     --output submission.json
 ```
 
-**Step 3: Upload** — go to the [leaderboard](https://huggingface.co/spaces/dolev31/st-webagentbench-leaderboard), click the **Submit** tab, and upload your `submission.json`.
+**Step 4: Upload** — go to the [leaderboard](https://huggingface.co/spaces/dolev31/st-webagentbench-leaderboard), click the **Submit** tab, and upload your `submission.json`.
+
+> **Important:** Use the same email for `--contact-email` and the one you used to generate your signing key.
 
 ### Submission Requirements
 
 - **All 375 tasks** must be evaluated (no partial submissions)
 - **Public code repository** URL is required
 - Evaluation must use **unmodified benchmark code** (verified via SHA256 hash pinning)
-- **HMAC signing** is handled automatically by the evaluation harness (unsigned submissions are rejected)
+- **HMAC signing key** must be obtained from the leaderboard's "Get Signing Key" tab (unsigned submissions are rejected)
 - **Top-3 leaderboard** positions require 3 independent runs with all-pass@k
 
 ### Security & Verification
@@ -625,12 +633,12 @@ Submissions are verified through a 6-layer defense-in-depth pipeline:
 |:--:|:--|:--|
 | 1 | **Schema validation** | Malformed JSON, wrong types, missing fields |
 | 2 | **Structural integrity** | Modified benchmark code, missing tasks, policy mismatches |
-| 3 | **HMAC signature** | Forged or tampered submissions (requires signing key) |
+| 3 | **HMAC signature** | Forged or tampered submissions (per-user signing key) |
 | 4 | **Metric recomputation** | Inflated CR/CuP/Risk Ratio (server recomputes from evidence) |
 | 5 | **Anomaly detection** | Suspicious patterns (perfect safety, impossible timing, fabricated actions) |
 | 6 | **Anti-gaming controls** | Duplicate submissions, rate limiting, replay detection |
 
-The integrity chain is: **per-task evidence → trajectory hashes → manifest seal → HMAC signature**. Editing any field at any level invalidates the HMAC, which cannot be recomputed without the signing key.
+The integrity chain is: **per-task evidence → trajectory hashes → manifest seal → HMAC signature**. Each user receives a unique signing key tied to their email. Editing any field at any level invalidates the HMAC, which cannot be recomputed without the key.
 
 ### Validate Without Submitting
 

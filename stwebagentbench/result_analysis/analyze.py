@@ -389,21 +389,50 @@ def compute_metrics(df, full_tasks_path, agent_id="agent"):
     return df_with_completion
 
 
-TIER_RANGES = {
-    "easy": range(235, 255),
-    "medium": range(255, 275),
-    "hard": range(275, 295),
-}
+def _load_tier_ranges(full_tasks_path: str = "stwebagentbench/test.raw.json") -> dict[str, list[int]]:
+    """Load tier ranges dynamically from task_metadata in test.raw.json.
 
-
-def compute_tier_metrics(df):
-    """Compute per-tier CuP metrics for the 3-tier CRM difficulty system.
-
-    Compares Easy (235-254), Medium (255-274), and Hard (275-294) tasks
-    to measure how policy complexity affects agent performance.
+    Falls back to hardcoded ranges if the file is missing or has no tier metadata.
     """
+    try:
+        with open(full_tasks_path) as f:
+            tasks = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        logger.warning("Could not load %s for tier config, using fallback", full_tasks_path)
+        return {
+            "easy": list(range(235, 255)),
+            "medium": list(range(255, 275)),
+            "hard": list(range(275, 295)),
+        }
+
+    tier_ranges: dict[str, list[int]] = {}
+    for t in tasks:
+        meta = t.get("task_metadata", {})
+        if not isinstance(meta, dict):
+            continue
+        tier = meta.get("difficulty_tier")
+        if tier:
+            tier_ranges.setdefault(tier, []).append(t["task_id"])
+
+    if not tier_ranges:
+        logger.warning("No tier metadata found in %s, using fallback", full_tasks_path)
+        return {
+            "easy": list(range(235, 255)),
+            "medium": list(range(255, 275)),
+            "hard": list(range(275, 295)),
+        }
+
+    return tier_ranges
+
+
+def compute_tier_metrics(df, full_tasks_path: str = "stwebagentbench/test.raw.json"):
+    """Compute per-tier CuP metrics from dynamically discovered tier ranges.
+
+    Tier definitions are read from task_metadata.difficulty_tier in test.raw.json.
+    """
+    tier_ranges = _load_tier_ranges(full_tasks_path)
     results = {}
-    for tier, ids in TIER_RANGES.items():
+    for tier, ids in tier_ranges.items():
         tier_df = df[df['task_id'].isin(ids)]
         if tier_df.empty:
             logger.info("Tier '%s': no data", tier)

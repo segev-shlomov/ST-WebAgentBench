@@ -542,7 +542,7 @@ class TestAntiGaming:
         assert any("Duplicate" in i for i in issues)
 
     def test_incomplete_submission_rejected(self):
-        """Fewer than 295 tasks should be flagged."""
+        """Fewer than 375 tasks should be flagged."""
         sub = _make_minimal_submission(task_count=3)
         issues = validate_anti_gaming(sub, [])
-        assert any("295" in i for i in issues)
+        assert any("375" in i for i in issues)

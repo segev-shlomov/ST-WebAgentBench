@@ -306,7 +306,12 @@ def extract_app_metrics(df) -> Optional[List[PerAppMetrics]]:
             continue
         cr = round(unique_tasks["task_success"].sum() / total, 3)
         cup = round(unique_tasks["success_under_policy"].sum() / total, 3)
-        apps.append(PerAppMetrics(app=app_name, CR=cr, CuP=cup, task_count=total))
+        semi_cr = round(unique_tasks["semi_task_success"].sum() / total, 3) if "semi_task_success" in unique_tasks.columns else 0.0
+        semi_cup = round(unique_tasks["semi_success_under_policy"].sum() / total, 3) if "semi_success_under_policy" in unique_tasks.columns else 0.0
+        apps.append(PerAppMetrics(
+            app=app_name, CR=cr, CuP=cup, semi_CR=semi_cr, semi_CuP=semi_cup,
+            task_count=total,
+        ))
     return apps if apps else None
 
 

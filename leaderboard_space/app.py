@@ -36,6 +36,8 @@ from validation.schema import (
     DIMENSION_DISPLAY,
     EXPECTED_TASK_COUNT,
     EXPECTED_POLICY_COUNT,
+    WEB_APPLICATIONS,
+    TIER_CONFIG,
 )
 from validation.validate import (
     validate_submission,
@@ -488,11 +490,13 @@ CUSTOM_CSS = """
 /* === Tables (Dataframe) === */
 .table-wrap {
     border-radius: 12px !important;
-    overflow: hidden !important;
+    overflow-x: auto !important;
     border: 1px solid #e2e8f0 !important;
 }
 .table-wrap table {
     border-collapse: collapse !important;
+    width: 100% !important;
+    table-layout: auto !important;
 }
 .table-wrap table thead th {
     background: #f1f5f9 !important;
@@ -503,11 +507,13 @@ CUSTOM_CSS = """
     letter-spacing: 0.04em !important;
     padding: 12px 16px !important;
     border-bottom: 2px solid #e2e8f0 !important;
+    white-space: nowrap !important;
 }
 .table-wrap table tbody td {
     padding: 10px 16px !important;
     font-size: 0.88rem !important;
     border-bottom: 1px solid #f1f5f9 !important;
+    white-space: nowrap !important;
 }
 .table-wrap table tbody tr:hover {
     background: #eff6ff !important;
@@ -675,6 +681,35 @@ def save_submission(submission: dict) -> None:
     with open(SUBMISSIONS_FILE, "a") as f:
         f.write(json.dumps(submission) + "\n")
     _persist_file(str(SUBMISSIONS_FILE), "submissions.jsonl")
+
+
+# ---------------------------------------------------------------------------
+# Dynamic tier description helper
+# ---------------------------------------------------------------------------
+
+
+def _build_tier_description() -> str:
+    """Generate the Tiers tab description from TIER_CONFIG."""
+    if not TIER_CONFIG:
+        return "### Difficulty Tier Breakdown\n\nNo tier information available."
+
+    parts = ["### Difficulty Tier Breakdown\n"]
+    for group, tiers in TIER_CONFIG.items():
+        group_display = group.replace("_", " ").title()
+        total_ids = sum(len(ids) for ids in tiers.values())
+        all_ids = sorted(tid for ids in tiers.values() for tid in ids)
+        id_range = f"{min(all_ids)}-{max(all_ids)}" if all_ids else "N/A"
+        parts.append(
+            f"Tasks {id_range} are organized into {len(tiers)} difficulty tiers "
+            f"({group_display}):\n"
+        )
+        for tier_name in sorted(tiers.keys(), key=lambda t: {"easy": 0, "medium": 1, "hard": 2}.get(t, 99)):
+            ids = sorted(tiers[tier_name])
+            parts.append(f"- **{tier_name.capitalize()}** ({min(ids)}-{max(ids)}): {len(ids)} tasks")
+        parts.append("")
+
+    parts.append("**Drop-off%** measures how much CuP degrades from the easiest to hardest tier.")
+    return "\n".join(parts)
 
 
 # ---------------------------------------------------------------------------
@@ -990,13 +1025,18 @@ def build_tier_table(submissions: list[dict]) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+_APP_DISPLAY = {
+    "gitlab": "GitLab",
+    "shopping_admin": "ShopAdmin",
+    "suitecrm": "SuiteCRM",
+}
+
+
 def build_app_table(submissions: list[dict]) -> pd.DataFrame:
-    """Build the per-app breakdown table."""
+    """Build the per-app breakdown table (flat: one row per agent+app)."""
     if not submissions:
         return pd.DataFrame(columns=[
-            "Agent", "GitLab-CuP", "GitLab-CR",
-            "ShopAdmin-CuP", "ShopAdmin-CR",
-            "SuiteCRM-CuP", "SuiteCRM-CR",
+            "Agent", "App", "CuP", "CR", "semi-CuP", "Gap%", "Tasks",
         ])
 
     rows = []
@@ -1006,16 +1046,22 @@ def build_app_table(submissions: list[dict]) -> pd.DataFrame:
         if not apps_list:
             continue
 
-        app_map = {a["app"]: a for a in apps_list}
-        row = {"Agent": meta.get("agent_id", "?")}
-        for app_key, display_prefix in [("gitlab", "GitLab"),
-                                         ("shopping_admin", "ShopAdmin"),
-                                         ("suitecrm", "SuiteCRM")]:
-            app = app_map.get(app_key, {})
-            row[f"{display_prefix}-CuP"] = round(app.get("CuP", 0), 3)
-            row[f"{display_prefix}-CR"] = round(app.get("CR", 0), 3)
-
-        rows.append(row)
+        agent_id = meta.get("agent_id", "?")
+        for app_data in apps_list:
+            app_key = app_data.get("app", "")
+            cr = app_data.get("CR", 0)
+            cup = app_data.get("CuP", 0)
+            semi_cup = app_data.get("semi_CuP", 0)
+            gap = ((cup - cr) / cr * 100) if cr > 0 else 0
+            rows.append({
+                "Agent": agent_id,
+                "App": _APP_DISPLAY.get(app_key, app_key),
+                "CuP": round(cup, 3),
+                "CR": round(cr, 3),
+                "semi-CuP": round(semi_cup, 3),
+                "Gap%": round(gap, 1),
+                "Tasks": app_data.get("task_count", 0),
+            })
 
     return pd.DataFrame(rows)
 
@@ -1482,7 +1528,7 @@ def create_app() -> gr.Blocks:
         gr.HTML(f"""
         <div id="hero-header">
             <div class="logo-row">
-                <img src="assets/ibm_research_logo.png" alt="IBM Research" />
+                <img src="assets/ibm_logo.png" alt="IBM" />
             </div>
             <h1>ST-WebAgentBench <span class="iclr-badge">ICLR 2025</span></h1>
             <p class="subtitle">
@@ -1508,7 +1554,7 @@ def create_app() -> gr.Blocks:
                     <div class="stat-label">Safety Dimensions</div>
                 </div>
                 <div class="stat-item">
-                    <div class="stat-value">3</div>
+                    <div class="stat-value">{len(WEB_APPLICATIONS)}</div>
                     <div class="stat-label">Web Applications</div>
                 </div>
             </div>
@@ -1536,11 +1582,23 @@ def create_app() -> gr.Blocks:
                     interactive=False,
                     label="Ranked by CuP (Completion under Policy)",
                     elem_id="leaderboard-table",
+                    column_widths=["60px", "140px", "120px", "120px", "70px", "70px", "70px", "80px", "80px", "80px", "60px", "100px"],
                 )
+
+                _SORT_LABELS = {
+                    "CuP": "Ranked by CuP (Completion under Policy)",
+                    "CR": "Ranked by CR (Completion Rate)",
+                    "semi-CuP": "Ranked by semi-CuP (Partial Completion under Policy)",
+                    "Risk Ratio": "Ranked by Risk Ratio (lowest first)",
+                    "Gap": "Ranked by Gap% (smallest safety gap first)",
+                    "Date": "Ranked by Date (most recent first)",
+                }
 
                 def update_table(sort_val, model_val, open_val, verified_val):
                     subs = load_submissions()
-                    return build_main_table(subs, sort_val, model_val, open_val, verified_val)
+                    df = build_main_table(subs, sort_val, model_val, open_val, verified_val)
+                    label = _SORT_LABELS.get(sort_val, f"Ranked by {sort_val}")
+                    return gr.update(value=df, label=label)
 
                 for control in [sort_by, model_filter, open_only, verified_only]:
                     control.change(
@@ -1587,16 +1645,7 @@ def create_app() -> gr.Blocks:
 
             # ---- Tab 3: Tiers ----
             with gr.TabItem("Tiers"):
-                gr.Markdown("""
-                ### CRM Difficulty Tier Breakdown
-
-                Tasks 235-294 are organized into 3 difficulty tiers with increasing policy complexity:
-                - **Easy** (235-254): Baseline policies
-                - **Medium** (255-274): Easy + additional medium policies
-                - **Hard** (275-294): Easy + Medium + hard policies
-
-                **Drop-off%** measures how much CuP degrades from Easy to Hard tier.
-                """)
+                gr.Markdown(_build_tier_description())
                 tier_table = gr.Dataframe(
                     value=build_tier_table(submissions),
                     interactive=False,

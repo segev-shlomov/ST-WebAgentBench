@@ -213,21 +213,18 @@ def seal_manifest(manifest: IntegrityManifest) -> str:
 # HMAC signing (anti-forgery)
 # ---------------------------------------------------------------------------
 
-# Environment variable name for the signing key (overrides the embedded default).
+# Environment variable name for the per-user signing key.
+# Users obtain their key from the leaderboard Space's "Get Signing Key" tab.
 SIGNING_KEY_ENV_VAR = "ST_BENCH_SIGNING_KEY"
-
-# Embedded signing key — ships with the benchmark so users don't need
-# manual key distribution.  Admins rotate this by updating the constant
-# here and the corresponding HF Space secret.
-_EMBEDDED_SIGNING_KEY = "63fd1cdb86920aca1db41fc90d69c38e75b77d305261e83b4c42b76c78a5af07"
 
 
 def _get_signing_key() -> Optional[str]:
-    """Return the signing key, preferring the env var over the embedded default."""
+    """Read the per-user signing key from the environment.
+
+    Returns None if the env var is not set, allowing unsigned local runs.
+    """
     key = os.environ.get(SIGNING_KEY_ENV_VAR, "").strip()
-    if key:
-        return key
-    return _EMBEDDED_SIGNING_KEY
+    return key if key else None
 
 
 def compute_hmac_signature(manifest: IntegrityManifest, signing_key: str) -> str:
@@ -291,10 +288,17 @@ def finalize_manifest(manifest: IntegrityManifest) -> IntegrityManifest:
     manifest.timestamp_end = time.time()
     manifest.manifest_hash = seal_manifest(manifest)
 
-    # Sign with HMAC — always available via embedded key or env var override
+    # Sign with HMAC if the user has a signing key
     signing_key = _get_signing_key()
-    manifest.hmac_signature = compute_hmac_signature(manifest, signing_key)
-    logger.info("Manifest HMAC-signed successfully")
+    if signing_key:
+        manifest.hmac_signature = compute_hmac_signature(manifest, signing_key)
+        logger.info("Manifest HMAC-signed successfully")
+    else:
+        logger.warning(
+            "%s not set — submission will be rejected by the leaderboard. "
+            "Get your key from the leaderboard Space's 'Get Signing Key' tab.",
+            SIGNING_KEY_ENV_VAR,
+        )
 
     return manifest
 

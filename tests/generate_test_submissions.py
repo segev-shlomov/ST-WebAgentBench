@@ -23,10 +23,10 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-# Use the canonical task data from the Space deployment (295 tasks, matches canonical hashes)
-TASKS_PATH = PROJECT_ROOT / "leaderboard_space" / "data" / "test.raw.json"
+# Use the canonical task data (375 tasks, matches canonical hashes)
+TASKS_PATH = PROJECT_ROOT / "stwebagentbench" / "test.raw.json"
 if not TASKS_PATH.exists():
-    TASKS_PATH = PROJECT_ROOT / "stwebagentbench" / "test.raw.json"
+    TASKS_PATH = PROJECT_ROOT / "leaderboard_space" / "data" / "test.raw.json"
 
 with open(TASKS_PATH, "r") as f:
     ALL_TASKS = json.load(f)
@@ -141,11 +141,11 @@ AWM_DIMENSION_RISK = {
     "error_handling_and_safety_nets": 0.34,
 }
 
-# App distribution (from the benchmark: 197 gitlab, 8 shopping_admin, 90 suitecrm)
+# App distribution (from the benchmark: 197 gitlab, 8 shopping_admin, 170 suitecrm)
 APP_TASK_RANGES = {
     "gitlab": list(range(0, 197)),
     "shopping_admin": list(range(197, 205)),
-    "suitecrm": list(range(205, 295)),
+    "suitecrm": list(range(205, 375)),
 }
 
 
@@ -434,7 +434,7 @@ def generate_legitimate_submission():
             "tiers": None,  # Only CRM tasks 235-294 have tiers
             "apps": None,
             "tasks_evaluated": total_tasks,
-            "tasks_total": 295,
+            "tasks_total": 375,
             "policies_evaluated": total_policies,
         },
         "task_evidence": task_evidence,
@@ -465,10 +465,10 @@ def generate_adversarial_submission():
     1. INFLATED METRICS — Claims CR=0.85, CuP=0.80 but evidence only supports ~0.34/0.20
     2. TAMPERED CODE HASHES — Fake evaluators hash (modified evaluators.py)
     3. VIOLATED→DORMANT FLIP — Marks actually-violated policies as dormant to hide them
-    4. FABRICATED SAFETY REPORTS — Zero violations across all 2552 policies (impossible)
-    5. CHERRY-PICKED TASKS — Only includes 290 tasks (missing 5)
+    4. FABRICATED SAFETY REPORTS — Zero violations across all policies (impossible)
+    5. CHERRY-PICKED TASKS — Only includes 370 tasks (missing 5)
     6. XSS IN METADATA — Script injection in agent_id and description
-    7. IMPOSSIBLY FAST TIMING — 295 tasks completed in 10 minutes
+    7. IMPOSSIBLY FAST TIMING — 375 tasks completed in 10 minutes
     8. CuP > CR — Mathematically impossible metric (CuP=0.85, CR=0.80)
     9. ZERO VISITED URLS — Steps exist but no URLs recorded
     10. ALL-ANSWER ACTIONS — 80% of actions are "answer" (fabrication signal)
@@ -476,12 +476,12 @@ def generate_adversarial_submission():
     random.seed(99)
 
     run_id = str(uuid.uuid4())
-    # Attack #7: Impossibly fast — 295 tasks in 10 minutes
+    # Attack #7: Impossibly fast — 375 tasks in 10 minutes
     start_time = datetime(2025, 4, 1, 12, 0, 0, tzinfo=timezone.utc)
     end_time = start_time + timedelta(minutes=10)
 
-    # Attack #5: Missing 5 tasks (290 instead of 295)
-    submitted_tasks = TASK_IDS[:290]
+    # Attack #5: Missing 5 tasks (370 instead of 375)
+    submitted_tasks = TASK_IDS[:370]
 
     task_evidence = []
     task_hashes = {}
@@ -645,7 +645,7 @@ def generate_adversarial_submission():
             "tiers": None,
             "apps": None,
             "tasks_evaluated": len(submitted_tasks),
-            "tasks_total": 295,
+            "tasks_total": 375,
             "policies_evaluated": total_policies,
         },
         "task_evidence": task_evidence,
@@ -692,7 +692,7 @@ if __name__ == "__main__":
         json.dump(adv, f, indent=2)
     print(f"  Written to {adv_path}")
     print(f"  CLAIMED CR={adv['results']['metrics']['CR']}, CuP={adv['results']['metrics']['CuP']}")
-    print(f"  Tasks submitted: {adv['results']['tasks_evaluated']} (should be 295)")
+    print(f"  Tasks submitted: {adv['results']['tasks_evaluated']} (should be 375)")
     print(f"  Attack vectors: 10 embedded")
 
     print("\nDone. Run validation with:")

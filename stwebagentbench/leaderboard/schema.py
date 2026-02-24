@@ -2,22 +2,34 @@
 
 Defines the complete submission bundle schema including metadata,
 per-task evidence, computed metrics, and integrity manifest.
+
+Task/policy counts and safety dimensions are computed dynamically
+from test.raw.json so constants auto-adapt when the benchmark grows.
 """
 
+import json
+import logging
 import re
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import List, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
 from stwebagentbench.leaderboard.integrity import BENCHMARK_VERSION
 
-# Expected task/policy counts for the current benchmark version.
-EXPECTED_TASK_COUNT = 295
-EXPECTED_POLICY_COUNT = 2552
+logger = logging.getLogger(__name__)
 
-# Canonical safety dimension identifiers (from policy_context.py).
-SAFETY_DIMENSIONS = [
+# ---------------------------------------------------------------------------
+# Dynamic benchmark config — computed from test.raw.json at startup
+# ---------------------------------------------------------------------------
+
+_TASKS_DATA_PATH = Path(__file__).resolve().parent.parent / "test.raw.json"
+
+# Hardcoded fallbacks (used only when test.raw.json is missing)
+_FALLBACK_TASK_COUNT = 375
+_FALLBACK_POLICY_COUNT = 3005
+_FALLBACK_SAFETY_DIMENSIONS = [
     "user_consent",
     "boundary_and_scope_limitation",
     "strict_execution",
@@ -25,9 +37,7 @@ SAFETY_DIMENSIONS = [
     "robustness_and_security",
     "error_handling_and_safety_nets",
 ]
-
-# Display names for the leaderboard UI.
-DIMENSION_DISPLAY = {
+_FALLBACK_DIMENSION_DISPLAY = {
     "user_consent": "User Consent",
     "boundary_and_scope_limitation": "Boundary & Scope",
     "strict_execution": "Strict Execution",
@@ -35,6 +45,45 @@ DIMENSION_DISPLAY = {
     "robustness_and_security": "Robustness & Security",
     "error_handling_and_safety_nets": "Error Handling",
 }
+
+
+def _load_benchmark_config() -> tuple:
+    """Load task/policy counts and safety dimensions from test.raw.json."""
+    if not _TASKS_DATA_PATH.exists():
+        logger.warning("test.raw.json not found at %s, using fallbacks", _TASKS_DATA_PATH)
+        return (
+            _FALLBACK_TASK_COUNT,
+            _FALLBACK_POLICY_COUNT,
+            list(_FALLBACK_SAFETY_DIMENSIONS),
+            dict(_FALLBACK_DIMENSION_DISPLAY),
+        )
+
+    with open(_TASKS_DATA_PATH) as f:
+        tasks = json.load(f)
+
+    task_count = len(tasks)
+    policy_count = sum(len(t.get("policies", [])) for t in tasks)
+
+    dim_set = set()
+    for t in tasks:
+        for p in t.get("policies", []):
+            cat = p.get("policy_category", "")
+            if cat:
+                dim_set.add(cat)
+
+    safety_dims = sorted(dim_set)
+    dim_display = {d: d.replace("_", " ").title().replace("And ", "& ") for d in safety_dims}
+
+    logger.info(
+        "Loaded benchmark config: %d tasks, %d policies, %d dimensions",
+        task_count, policy_count, len(safety_dims),
+    )
+    return task_count, policy_count, safety_dims, dim_display
+
+
+EXPECTED_TASK_COUNT, EXPECTED_POLICY_COUNT, SAFETY_DIMENSIONS, DIMENSION_DISPLAY = (
+    _load_benchmark_config()
+)
 
 
 # ---------------------------------------------------------------------------
@@ -142,6 +191,8 @@ class PerAppMetrics(BaseModel):
     app: str
     CR: float = Field(..., ge=0, le=1)
     CuP: float = Field(..., ge=0, le=1)
+    semi_CR: float = Field(0, ge=0, le=1)
+    semi_CuP: float = Field(0, ge=0, le=1)
     task_count: int = Field(..., ge=0)
 
 
