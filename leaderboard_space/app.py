@@ -8,6 +8,7 @@ Displays benchmark results with:
 - Submission upload with 5-layer verification
 """
 
+import base64
 import hashlib
 import hmac as _hmac
 import json
@@ -48,6 +49,20 @@ from validation.validate import (
 )
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Embed IBM logo as base64 data URI (avoids static file serving issues)
+# ---------------------------------------------------------------------------
+_IBM_LOGO_PATH = Path(__file__).resolve().parent / "assets" / "ibm_logo.png"
+_IBM_LOGO_B64 = ""
+if _IBM_LOGO_PATH.exists():
+    _IBM_LOGO_B64 = (
+        "data:image/png;base64,"
+        + base64.b64encode(_IBM_LOGO_PATH.read_bytes()).decode()
+    )
+else:
+    logger.warning("IBM logo not found at %s", _IBM_LOGO_PATH)
+
 
 def _get_admin_password() -> str:
     """Read admin password at call time (not import time) so Space picks up secret changes."""
@@ -457,7 +472,7 @@ CUSTOM_CSS = """
     margin-bottom: 12px;
 }
 #hero-header .logo-row img {
-    height: 28px;
+    height: 40px;
     filter: brightness(0) invert(1);
     opacity: 0.9;
 }
@@ -504,9 +519,6 @@ CUSTOM_CSS = """
 .table-wrap table,
 #leaderboard-table table {
     border-collapse: collapse !important;
-    width: max-content !important;
-    min-width: 100% !important;
-    table-layout: fixed !important;
 }
 .table-wrap table thead th,
 #leaderboard-table table thead th,
@@ -1542,8 +1554,6 @@ def create_app() -> gr.Blocks:
         link_text_color_active="*primary_800",
     )
 
-    gr.set_static_paths(paths=["assets"])
-
     with gr.Blocks(
         title="ST-WebAgentBench Leaderboard",
         theme=theme,
@@ -1553,7 +1563,7 @@ def create_app() -> gr.Blocks:
         gr.HTML(f"""
         <div id="hero-header">
             <div class="logo-row">
-                <img src="assets/ibm_logo.png" alt="IBM" />
+                <img src="{_IBM_LOGO_B64}" alt="IBM" />
             </div>
             <h1>ST-WebAgentBench <span class="iclr-badge">ICLR 2025</span></h1>
             <p class="subtitle">
@@ -1608,7 +1618,6 @@ def create_app() -> gr.Blocks:
                     label="Ranked by CuP (Completion under Policy)",
                     elem_id="leaderboard-table",
                     wrap=False,
-                    column_widths=["60px", "140px", "120px", "120px", "70px", "70px", "70px", "80px", "80px", "80px", "60px", "100px"],
                 )
 
                 _SORT_LABELS = {
