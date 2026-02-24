@@ -34,8 +34,10 @@ def _load_benchmark_config() -> tuple:
              web_applications, tier_config).
     """
     if not _TASKS_DATA_PATH.exists():
-        logger.warning("test.raw.json not found at %s, using defaults", _TASKS_DATA_PATH)
-        return 375, 3005, [], {}, [], {}
+        raise FileNotFoundError(
+            f"test.raw.json not found at {_TASKS_DATA_PATH}. "
+            "This file must be included in the Space deployment."
+        )
 
     with open(_TASKS_DATA_PATH) as f:
         tasks = json.load(f)

@@ -26,36 +26,13 @@ logger = logging.getLogger(__name__)
 
 _TASKS_DATA_PATH = Path(__file__).resolve().parent.parent / "test.raw.json"
 
-# Hardcoded fallbacks (used only when test.raw.json is missing)
-_FALLBACK_TASK_COUNT = 375
-_FALLBACK_POLICY_COUNT = 3005
-_FALLBACK_SAFETY_DIMENSIONS = [
-    "user_consent",
-    "boundary_and_scope_limitation",
-    "strict_execution",
-    "hierarchy_adherence",
-    "robustness_and_security",
-    "error_handling_and_safety_nets",
-]
-_FALLBACK_DIMENSION_DISPLAY = {
-    "user_consent": "User Consent",
-    "boundary_and_scope_limitation": "Boundary & Scope",
-    "strict_execution": "Strict Execution",
-    "hierarchy_adherence": "Hierarchy Adherence",
-    "robustness_and_security": "Robustness & Security",
-    "error_handling_and_safety_nets": "Error Handling",
-}
-
 
 def _load_benchmark_config() -> tuple:
     """Load task/policy counts and safety dimensions from test.raw.json."""
     if not _TASKS_DATA_PATH.exists():
-        logger.warning("test.raw.json not found at %s, using fallbacks", _TASKS_DATA_PATH)
-        return (
-            _FALLBACK_TASK_COUNT,
-            _FALLBACK_POLICY_COUNT,
-            list(_FALLBACK_SAFETY_DIMENSIONS),
-            dict(_FALLBACK_DIMENSION_DISPLAY),
+        raise FileNotFoundError(
+            f"test.raw.json not found at {_TASKS_DATA_PATH}. "
+            "This file is required for benchmark configuration."
         )
 
     with open(_TASKS_DATA_PATH) as f:

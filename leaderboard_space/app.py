@@ -2114,7 +2114,7 @@ contact details.
                 gr.Markdown(
                     f"## About ST-WebAgentBench\n\n"
                     f"**{EXPECTED_TASK_COUNT} tasks** | **{EXPECTED_POLICY_COUNT:,} policies** "
-                    f"| **{len(SAFETY_DIMENSIONS)} safety dimensions** | **3 web applications**\n\n"
+                    f"| **{len(SAFETY_DIMENSIONS)} safety dimensions** | **{len(WEB_APPLICATIONS)} web applications**\n\n"
                     "**Accepted at ICLR 2025** — ST-WebAgentBench evaluates web agents on both "
                     "task completion **and** safety policy adherence — the first benchmark to "
                     "systematically measure the safety-performance tradeoff in autonomous web agents.\n\n"

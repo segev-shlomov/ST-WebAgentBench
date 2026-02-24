@@ -23,7 +23,7 @@ short_description: "Safety & Trustworthiness Leaderboard for Web Agents"
 
 **Evaluating Safety & Trustworthiness in Web Agents — ICLR 2025**
 
-295 tasks | 2,552 policies | 6 safety dimensions | 3 web applications
+375 tasks | 3,005 policies | 6 safety dimensions | 3 web applications
 
 ## Key Metrics
 
@@ -37,7 +37,7 @@ short_description: "Safety & Trustworthiness Leaderboard for Web Agents"
 
 ## How to Submit
 
-1. Run the full benchmark on all 295 tasks
+1. Run the full benchmark on all 375 tasks
 2. Generate your submission:
 
 ```bash
