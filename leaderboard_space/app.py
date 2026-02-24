@@ -606,6 +606,11 @@ CUSTOM_CSS = """
 .table-wrap {
     border-radius: 12px !important;
     border: 1px solid #e2e8f0 !important;
+    overflow: hidden !important;
+}
+/* Ensure last row has a visible bottom border for table closure */
+table tbody tr:last-child td {
+    border-bottom: 2px solid #e2e8f0 !important;
 }
 /* Override Gradio 6 internal: force nowrap on header text */
 .header-content {
