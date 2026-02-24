@@ -170,13 +170,19 @@ _HF_API: HfApi | None = None
 
 
 def _get_hf_api() -> HfApi | None:
-    """Lazy-init HfApi; returns None if no HF_TOKEN is available."""
+    """Lazy-init HfApi; returns None if no usable token is found."""
     global _HF_API
     if _HF_API is not None:
         return _HF_API
-    if os.environ.get("HF_TOKEN"):
-        _HF_API = HfApi()
+    # HfApi auto-detects tokens from HF_TOKEN, HUGGING_FACE_HUB_TOKEN,
+    # or the cached login token. Create it and check if a token is available.
+    api = HfApi()
+    token = api.token
+    if token:
+        _HF_API = api
+        logger.info("HfApi initialized (token available)")
         return _HF_API
+    logger.warning("No HF token found — data persistence disabled")
     return None
 
 
