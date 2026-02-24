@@ -190,10 +190,13 @@ def _init_persistence() -> bool:
     global _scheduler
     _DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-    api = HfApi()
-    if not api.token:
-        logger.warning("No HF token found — data persistence disabled")
+    token = os.environ.get("HF_TOKEN")
+    if not token:
+        logger.warning("No HF token found — data persistence disabled (HF_TOKEN not in env)")
         return False
+
+    logger.info("HF_TOKEN found, initializing persistence...")
+    api = HfApi(token=token)
 
     try:
         # Download existing data files from the repo before starting the scheduler
