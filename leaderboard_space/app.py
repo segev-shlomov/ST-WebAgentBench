@@ -27,7 +27,7 @@ from typing import List, Optional
 
 import gradio as gr
 from gradio.themes.utils import colors, fonts, sizes
-from huggingface_hub import HfApi
+from huggingface_hub import CommitScheduler, HfApi
 import pandas as pd
 import plotly.graph_objects as go
 
@@ -151,7 +151,6 @@ def _log_admin_action(action: str, details: str) -> None:
     }
     with open(ADMIN_AUDIT_FILE, "a") as f:
         f.write(json.dumps(record) + "\n")
-    _persist_file(str(ADMIN_AUDIT_FILE), "admin_audit.jsonl")
 
 
 # Master secret env var name — used to derive per-user signing keys.
@@ -177,68 +176,60 @@ CANONICAL_HASHES_FILE = Path("data/canonical_hashes.json")
 
 
 # ---------------------------------------------------------------------------
-# Data persistence — external private dataset repo (survives Space restarts)
+# Data persistence — CommitScheduler auto-syncs data/ to HF dataset repo
 # ---------------------------------------------------------------------------
 
 _DATA_REPO_ID = "dolev31/st-webagentbench-data"
-_HF_API: HfApi | None = None
+_DATA_DIR = Path("data")
+_scheduler: CommitScheduler | None = None
+_PERSISTENCE_ENABLED = False
 
 
-def _get_hf_api() -> HfApi | None:
-    """Lazy-init HfApi; returns None if no usable token is found."""
-    global _HF_API
-    if _HF_API is not None:
-        return _HF_API
-    # HfApi auto-detects tokens from HF_TOKEN, HUGGING_FACE_HUB_TOKEN,
-    # or the cached login token. Create it and check if a token is available.
+def _init_persistence() -> bool:
+    """Initialize CommitScheduler for data persistence. Returns True if enabled."""
+    global _scheduler
+    _DATA_DIR.mkdir(parents=True, exist_ok=True)
+
     api = HfApi()
-    token = api.token
-    if token:
-        _HF_API = api
-        logger.info("HfApi initialized (token available)")
-        return _HF_API
-    logger.warning("No HF token found — data persistence disabled")
-    return None
+    if not api.token:
+        logger.warning("No HF token found — data persistence disabled")
+        return False
 
-
-def _persist_file(local_path: str, repo_path: str) -> None:
-    """Push a local file to the private dataset repo (no Space rebuild)."""
-    api = _get_hf_api()
-    if api is None:
-        return
     try:
-        api.upload_file(
-            path_or_fileobj=local_path,
-            path_in_repo=repo_path,
+        # Download existing data files from the repo before starting the scheduler
+        for filename in ["submissions.jsonl", "key_requests.jsonl", "admin_audit.jsonl"]:
+            local = _DATA_DIR / filename
+            if not local.exists() or local.stat().st_size == 0:
+                try:
+                    api.hf_hub_download(
+                        repo_id=_DATA_REPO_ID,
+                        repo_type="dataset",
+                        filename=filename,
+                        local_dir=str(_DATA_DIR),
+                    )
+                    logger.info("Restored %s from data repo", filename)
+                except Exception:
+                    logger.info("No existing %s in data repo (first run?)", filename)
+
+        # Start the scheduler — auto-commits data/ every 2 minutes
+        _scheduler = CommitScheduler(
             repo_id=_DATA_REPO_ID,
+            folder_path=_DATA_DIR,
+            every=2,
             repo_type="dataset",
-            commit_message=f"Auto-persist {repo_path}",
+            private=True,
+            allow_patterns=["*.jsonl"],
+            squash_history=True,
+            hf_api=api,
         )
+        logger.info(
+            "CommitScheduler started — persisting to %s every 2 min",
+            _DATA_REPO_ID,
+        )
+        return True
     except Exception:
-        logger.warning("Failed to persist %s", repo_path, exc_info=True)
-
-
-def _restore_data_files() -> None:
-    """On startup, download latest data files from the dataset repo."""
-    api = _get_hf_api()
-    if api is None:
-        logger.info("No HF_TOKEN — skipping data restore from dataset repo")
-        return
-    Path("data").mkdir(parents=True, exist_ok=True)
-    for filename in ["submissions.jsonl", "key_requests.jsonl", "admin_audit.jsonl"]:
-        local = Path("data") / filename
-        if local.exists() and local.stat().st_size > 0:
-            continue  # Already has data (e.g., mid-session)
-        try:
-            api.hf_hub_download(
-                repo_id=_DATA_REPO_ID,
-                repo_type="dataset",
-                filename=filename,
-                local_dir="data",
-            )
-            logger.info("Restored %s from data repo", filename)
-        except Exception:
-            logger.info("No existing %s in data repo (first run?)", filename)
+        logger.error("Failed to initialize persistence", exc_info=True)
+        return False
 
 
 # Load canonical task definitions for validation
@@ -318,7 +309,6 @@ def _log_key_request(email: str, team: str, institution: str) -> None:
     }
     with open(KEY_REQUESTS_FILE, "a") as f:
         f.write(json.dumps(record) + "\n")
-    _persist_file(str(KEY_REQUESTS_FILE), "key_requests.jsonl")
 
 
 def _load_key_requests() -> list[dict]:
@@ -716,7 +706,6 @@ def save_submission(submission: dict) -> None:
     SUBMISSIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(SUBMISSIONS_FILE, "a") as f:
         f.write(json.dumps(submission) + "\n")
-    _persist_file(str(SUBMISSIONS_FILE), "submissions.jsonl")
 
 
 # ---------------------------------------------------------------------------
@@ -1292,7 +1281,6 @@ def admin_remove_submission(agent_id: str, session_token: str):
     SUBMISSIONS_FILE.write_text(
         "\n".join(json.dumps(s) for s in filtered) + ("\n" if filtered else "")
     )
-    _persist_file(str(SUBMISSIONS_FILE), "submissions.jsonl")
     _log_admin_action("remove_submission", f"Removed {removed} submission(s) with agent_id={agent_id.strip()}")
     return f"Removed {removed} submission(s) with agent_id '{agent_id}'."
 
@@ -2159,7 +2147,14 @@ contact details.
 
                     # Admin controls — hidden until login succeeds
                     with gr.Column(visible=False) as admin_panel:
-                        gr.Markdown("---\n*Session active. All actions below are authenticated.*")
+                        _persist_msg = (
+                            "Data persistence: **ACTIVE** — syncing to HF dataset every 2 min"
+                            if _PERSISTENCE_ENABLED
+                            else "Data persistence: **DISABLED** — no HF_TOKEN set, "
+                                 "data will be lost on rebuild!"
+                        )
+                        gr.Markdown(f"---\n{_persist_msg}\n\n"
+                                    f"*Session active. All actions below are authenticated.*")
 
                         with gr.Accordion("Remove Submission", open=True):
                             admin_agent_id = gr.Textbox(label="Agent ID to remove")
@@ -2231,8 +2226,22 @@ contact details.
     return demo
 
 
-# Restore persisted data on module load (runs on Space startup)
-_restore_data_files()
+# Initialize data persistence on module load (runs on Space startup)
+_PERSISTENCE_ENABLED = _init_persistence()
+
+if _PERSISTENCE_ENABLED:
+    logger.info("Persistence OK — data will survive Space rebuilds")
+    for _f in ["key_requests.jsonl", "submissions.jsonl", "admin_audit.jsonl"]:
+        _p = _DATA_DIR / _f
+        if _p.exists() and _p.stat().st_size > 0:
+            _count = sum(1 for line in _p.read_text().strip().split("\n") if line.strip())
+            logger.info("  %s: %d records", _f, _count)
+else:
+    logger.error(
+        "PERSISTENCE DISABLED — set HF_TOKEN as a Space secret with write "
+        "access to %s",
+        _DATA_REPO_ID,
+    )
 
 
 if __name__ == "__main__":
