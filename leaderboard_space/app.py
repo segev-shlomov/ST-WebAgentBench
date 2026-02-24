@@ -14,7 +14,9 @@ import json
 import logging
 import os
 import re
+import secrets
 import tempfile
+import time as _time
 import traceback
 from collections import Counter
 from datetime import datetime, timezone
@@ -47,6 +49,91 @@ logger = logging.getLogger(__name__)
 def _get_admin_password() -> str:
     """Read admin password at call time (not import time) so Space picks up secret changes."""
     return os.environ.get("ADMIN_PASSWORD", "")
+
+
+# ---------------------------------------------------------------------------
+# Admin security: timing-safe comparison, rate limiting, sessions, audit
+# ---------------------------------------------------------------------------
+
+def _verify_admin_password(password: str) -> bool:
+    """Constant-time password comparison to prevent timing attacks."""
+    admin_pw = _get_admin_password()
+    if not admin_pw or not password:
+        return False
+    return _hmac.compare_digest(password.encode("utf-8"), admin_pw.encode("utf-8"))
+
+
+# Rate limiting — in-memory, resets on Space restart (acceptable).
+_ADMIN_FAIL_LOG: list[float] = []
+_ADMIN_MAX_FAILS = 5
+_ADMIN_WINDOW_SECS = 300      # 5-minute sliding window
+_ADMIN_LOCKOUT_SECS = 600     # 10-minute lockout after exceeding
+
+
+def _check_rate_limit() -> str | None:
+    """Return an error message if rate-limited, else None."""
+    now = _time.time()
+    # Prune old entries outside the lockout window
+    cutoff = now - _ADMIN_LOCKOUT_SECS
+    while _ADMIN_FAIL_LOG and _ADMIN_FAIL_LOG[0] < cutoff:
+        _ADMIN_FAIL_LOG.pop(0)
+    # Count failures in the sliding window
+    recent = [t for t in _ADMIN_FAIL_LOG if t > now - _ADMIN_WINDOW_SECS]
+    if len(recent) >= _ADMIN_MAX_FAILS:
+        last_fail = max(_ADMIN_FAIL_LOG)
+        unlock_at = last_fail + _ADMIN_LOCKOUT_SECS
+        remaining = int(unlock_at - now)
+        if remaining > 0:
+            return f"Too many failed attempts. Try again in {remaining} seconds."
+    return None
+
+
+def _record_failed_attempt() -> None:
+    _ADMIN_FAIL_LOG.append(_time.time())
+
+
+# Session management — in-memory tokens, 1-hour TTL.
+_ADMIN_SESSIONS: dict[str, float] = {}
+_SESSION_TTL = 3600  # 1 hour
+
+
+def _create_admin_session() -> str:
+    """Generate a session token and store it with an expiry."""
+    token = secrets.token_hex(32)
+    _ADMIN_SESSIONS[token] = _time.time() + _SESSION_TTL
+    # Prune expired sessions
+    now = _time.time()
+    expired = [k for k, v in _ADMIN_SESSIONS.items() if v < now]
+    for k in expired:
+        del _ADMIN_SESSIONS[k]
+    return token
+
+
+def _verify_session(token: str) -> bool:
+    """Check if a session token is valid and not expired."""
+    if not token or token not in _ADMIN_SESSIONS:
+        return False
+    if _time.time() > _ADMIN_SESSIONS[token]:
+        del _ADMIN_SESSIONS[token]
+        return False
+    return True
+
+
+# Audit logging — append-only JSONL.
+ADMIN_AUDIT_FILE = Path("data/admin_audit.jsonl")
+
+
+def _log_admin_action(action: str, details: str) -> None:
+    """Append an admin action to the audit log."""
+    ADMIN_AUDIT_FILE.parent.mkdir(parents=True, exist_ok=True)
+    record = {
+        "action": action,
+        "details": details,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    with open(ADMIN_AUDIT_FILE, "a") as f:
+        f.write(json.dumps(record) + "\n")
+
 
 # Master secret env var name — used to derive per-user signing keys.
 # Set as HF Space secret — never exposed publicly.
@@ -177,6 +264,10 @@ def handle_key_request(email: str, team: str, institution: str) -> str:
         return f"Invalid email address: {email}"
     if not team:
         return "Please enter your team name."
+    if not is_safe_string(team, max_length=256):
+        return "Team name contains disallowed characters."
+    if institution and not is_safe_string(institution, max_length=256):
+        return "Institution contains disallowed characters."
 
     user_key = derive_user_key(email)
     _log_key_request(email, team, institution)
@@ -1038,13 +1129,10 @@ def process_upload(file):
     )
 
 
-def admin_remove_submission(agent_id: str, password: str):
-    """Remove a submission by agent_id (admin only)."""
-    admin_pw = _get_admin_password()
-    if not admin_pw:
-        return "Admin password not configured. Set ADMIN_PASSWORD in Space secrets."
-    if password != admin_pw:
-        return "Invalid admin password."
+def admin_remove_submission(agent_id: str, session_token: str):
+    """Remove a submission by agent_id (session-gated)."""
+    if not _verify_session(session_token):
+        return "Session expired — please log in again."
     if not agent_id or not agent_id.strip():
         return "Please enter an agent_id."
 
@@ -1058,27 +1146,25 @@ def admin_remove_submission(agent_id: str, password: str):
     SUBMISSIONS_FILE.write_text(
         "\n".join(json.dumps(s) for s in filtered) + ("\n" if filtered else "")
     )
+    _log_admin_action("remove_submission", f"Removed {removed} submission(s) with agent_id={agent_id.strip()}")
     return f"Removed {removed} submission(s) with agent_id '{agent_id}'."
 
 
-def admin_build_key_dashboard(password: str):
-    """Build comprehensive key request dashboard (admin only).
+def admin_build_key_dashboard(session_token: str):
+    """Build comprehensive key request dashboard (session-gated).
 
     Returns (stats_markdown, dataframe, timeline_plot, institution_plot, csv_file).
     """
     empty = (
-        "*Enter password and click Load Dashboard*",
+        "*Click Load Dashboard to populate.*",
         pd.DataFrame(),
         _empty_figure("No data", 350),
         _empty_figure("No data", 300),
         None,
     )
 
-    admin_pw = _get_admin_password()
-    if not admin_pw:
-        return ("Admin password not configured.", *empty[1:])
-    if password != admin_pw:
-        return ("Invalid admin password.", *empty[1:])
+    if not _verify_session(session_token):
+        return ("Session expired — please log in again.", *empty[1:])
 
     requests = _load_key_requests()
     if not requests:
@@ -1192,7 +1278,7 @@ def admin_build_key_dashboard(password: str):
     display_df.insert(0, "#", range(1, len(display_df) + 1))
     display_df.columns = ["#", "Email", "Team", "Institution", "Timestamp"]
 
-    # ---- CSV export ----
+    # ---- CSV export (owner-only permissions) ----
     csv_path = None
     try:
         tmp = tempfile.NamedTemporaryFile(
@@ -1200,21 +1286,68 @@ def admin_build_key_dashboard(password: str):
         )
         display_df.to_csv(tmp.name, index=False)
         tmp.close()
+        os.chmod(tmp.name, 0o600)
         csv_path = tmp.name
     except Exception:
         pass
 
+    _log_admin_action("view_dashboard", f"Key dashboard accessed ({len(requests)} requests)")
     return stats_md, display_df, timeline_fig, inst_fig, csv_path
 
 
+def admin_view_audit_log(session_token: str) -> str:
+    """Show recent admin audit log entries (session-gated)."""
+    if not _verify_session(session_token):
+        return "Session expired — please log in again."
+
+    if not ADMIN_AUDIT_FILE.exists():
+        return "No audit log entries yet."
+
+    entries = []
+    for line in ADMIN_AUDIT_FILE.read_text().strip().split("\n"):
+        if line.strip():
+            try:
+                entries.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+
+    if not entries:
+        return "No audit log entries yet."
+
+    # Show most recent first, limit to last 100
+    entries = entries[-100:][::-1]
+    lines = [f"**Audit Log** ({len(entries)} most recent entries)\n"]
+    for e in entries:
+        lines.append(
+            f"- `{e.get('timestamp', '?')}` | "
+            f"**{e.get('action', '?')}** | "
+            f"{e.get('details', '')}"
+        )
+    return "\n".join(lines)
+
+
 def admin_login(password: str):
-    """Validate admin password and return visibility update for admin tab."""
-    admin_pw = _get_admin_password()
-    if not admin_pw:
-        return gr.update(visible=False), "Admin not configured."
-    if password != admin_pw:
-        return gr.update(visible=False), "Invalid password."
-    return gr.update(visible=True), "Access granted."
+    """Validate admin password, create session, return (panel_visibility, status, token).
+
+    Uses timing-safe comparison and rate limiting.
+    """
+    # Rate-limit check
+    locked = _check_rate_limit()
+    if locked:
+        _log_admin_action("login_blocked", "Rate-limited")
+        return gr.update(visible=False), locked, ""
+
+    if not _get_admin_password():
+        return gr.update(visible=False), "Admin not configured.", ""
+
+    if not _verify_admin_password(password):
+        _record_failed_attempt()
+        _log_admin_action("login_failed", "Invalid password attempt")
+        return gr.update(visible=False), "Invalid password.", ""
+
+    token = _create_admin_session()
+    _log_admin_action("login", "Admin login successful")
+    return gr.update(visible=True), "Logged in. Session expires in ~60 min.", token
 
 
 # ---------------------------------------------------------------------------
@@ -1871,19 +2004,21 @@ contact details.
                     admin_login_btn = gr.Button("Login", size="sm")
                     admin_login_msg = gr.Textbox(label="Status", interactive=False, lines=1)
 
+                    # Session token — invisible to user, passed to all admin actions
+                    admin_session = gr.State(value="")
+
                     # Admin controls — hidden until login succeeds
                     with gr.Column(visible=False) as admin_panel:
-                        gr.Markdown("---")
+                        gr.Markdown("---\n*Session active. All actions below are authenticated.*")
 
                         with gr.Accordion("Remove Submission", open=True):
                             admin_agent_id = gr.Textbox(label="Agent ID to remove")
-                            admin_password = gr.Textbox(label="Admin Password", type="password")
                             admin_btn = gr.Button("Remove Submission", variant="stop")
                             admin_result = gr.Textbox(label="Result", interactive=False, lines=3)
 
                             admin_btn.click(
                                 admin_remove_submission,
-                                inputs=[admin_agent_id, admin_password],
+                                inputs=[admin_agent_id, admin_session],
                                 outputs=[admin_result],
                                 api_name=False,
                             )
@@ -1891,13 +2026,12 @@ contact details.
                         with gr.Accordion("Key Request Dashboard", open=False):
                             gr.Markdown(
                                 "Comprehensive view of all signing key requests. "
-                                "Enter admin password and click **Load Dashboard**."
+                                "Click **Load Dashboard** to populate."
                             )
-                            admin_key_password = gr.Textbox(label="Admin Password", type="password")
                             admin_key_btn = gr.Button("Load Dashboard", variant="secondary")
 
                             admin_key_stats = gr.Markdown(
-                                value="*Enter password and click Load Dashboard*"
+                                value="*Click Load Dashboard to populate.*"
                             )
                             with gr.Row():
                                 admin_timeline_plot = gr.Plot(label="Requests Over Time")
@@ -1914,7 +2048,7 @@ contact details.
 
                             admin_key_btn.click(
                                 admin_build_key_dashboard,
-                                inputs=[admin_key_password],
+                                inputs=[admin_session],
                                 outputs=[
                                     admin_key_stats,
                                     admin_key_table,
@@ -1925,10 +2059,22 @@ contact details.
                                 api_name=False,
                             )
 
+                        with gr.Accordion("Audit Log", open=False):
+                            gr.Markdown("Chronological log of all admin actions.")
+                            admin_audit_btn = gr.Button("Load Audit Log", variant="secondary")
+                            admin_audit_log = gr.Markdown(value="*Click Load Audit Log to view.*")
+
+                            admin_audit_btn.click(
+                                admin_view_audit_log,
+                                inputs=[admin_session],
+                                outputs=[admin_audit_log],
+                                api_name=False,
+                            )
+
                     admin_login_btn.click(
                         admin_login,
                         inputs=[admin_login_pw],
-                        outputs=[admin_panel, admin_login_msg],
+                        outputs=[admin_panel, admin_login_msg, admin_session],
                         api_name=False,
                     )
 
