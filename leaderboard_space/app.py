@@ -26,6 +26,7 @@ from typing import List, Optional
 
 import gradio as gr
 from gradio.themes.utils import colors, fonts, sizes
+from huggingface_hub import HfApi
 import pandas as pd
 import plotly.graph_objects as go
 
@@ -133,6 +134,7 @@ def _log_admin_action(action: str, details: str) -> None:
     }
     with open(ADMIN_AUDIT_FILE, "a") as f:
         f.write(json.dumps(record) + "\n")
+    _persist_file(str(ADMIN_AUDIT_FILE), "admin_audit.jsonl")
 
 
 # Master secret env var name — used to derive per-user signing keys.
@@ -155,6 +157,66 @@ SUBMISSIONS_FILE = Path("data/submissions.jsonl")
 KEY_REQUESTS_FILE = Path("data/key_requests.jsonl")
 TASKS_FILE = Path("data/test.raw.json")
 CANONICAL_HASHES_FILE = Path("data/canonical_hashes.json")
+
+
+# ---------------------------------------------------------------------------
+# Data persistence — external private dataset repo (survives Space restarts)
+# ---------------------------------------------------------------------------
+
+_DATA_REPO_ID = "dolev31/st-webagentbench-data"
+_HF_API: HfApi | None = None
+
+
+def _get_hf_api() -> HfApi | None:
+    """Lazy-init HfApi; returns None if no HF_TOKEN is available."""
+    global _HF_API
+    if _HF_API is not None:
+        return _HF_API
+    if os.environ.get("HF_TOKEN"):
+        _HF_API = HfApi()
+        return _HF_API
+    return None
+
+
+def _persist_file(local_path: str, repo_path: str) -> None:
+    """Push a local file to the private dataset repo (no Space rebuild)."""
+    api = _get_hf_api()
+    if api is None:
+        return
+    try:
+        api.upload_file(
+            path_or_fileobj=local_path,
+            path_in_repo=repo_path,
+            repo_id=_DATA_REPO_ID,
+            repo_type="dataset",
+            commit_message=f"Auto-persist {repo_path}",
+        )
+    except Exception:
+        logger.warning("Failed to persist %s", repo_path, exc_info=True)
+
+
+def _restore_data_files() -> None:
+    """On startup, download latest data files from the dataset repo."""
+    api = _get_hf_api()
+    if api is None:
+        logger.info("No HF_TOKEN — skipping data restore from dataset repo")
+        return
+    Path("data").mkdir(parents=True, exist_ok=True)
+    for filename in ["submissions.jsonl", "key_requests.jsonl", "admin_audit.jsonl"]:
+        local = Path("data") / filename
+        if local.exists() and local.stat().st_size > 0:
+            continue  # Already has data (e.g., mid-session)
+        try:
+            api.hf_hub_download(
+                repo_id=_DATA_REPO_ID,
+                repo_type="dataset",
+                filename=filename,
+                local_dir="data",
+            )
+            logger.info("Restored %s from data repo", filename)
+        except Exception:
+            logger.info("No existing %s in data repo (first run?)", filename)
+
 
 # Load canonical task definitions for validation
 _TASKS_DATA = None
@@ -233,6 +295,7 @@ def _log_key_request(email: str, team: str, institution: str) -> None:
     }
     with open(KEY_REQUESTS_FILE, "a") as f:
         f.write(json.dumps(record) + "\n")
+    _persist_file(str(KEY_REQUESTS_FILE), "key_requests.jsonl")
 
 
 def _load_key_requests() -> list[dict]:
@@ -611,6 +674,7 @@ def save_submission(submission: dict) -> None:
     SUBMISSIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(SUBMISSIONS_FILE, "a") as f:
         f.write(json.dumps(submission) + "\n")
+    _persist_file(str(SUBMISSIONS_FILE), "submissions.jsonl")
 
 
 # ---------------------------------------------------------------------------
@@ -1146,6 +1210,7 @@ def admin_remove_submission(agent_id: str, session_token: str):
     SUBMISSIONS_FILE.write_text(
         "\n".join(json.dumps(s) for s in filtered) + ("\n" if filtered else "")
     )
+    _persist_file(str(SUBMISSIONS_FILE), "submissions.jsonl")
     _log_admin_action("remove_submission", f"Removed {removed} submission(s) with agent_id={agent_id.strip()}")
     return f"Removed {removed} submission(s) with agent_id '{agent_id}'."
 
@@ -2079,6 +2144,10 @@ contact details.
                     )
 
     return demo
+
+
+# Restore persisted data on module load (runs on Space startup)
+_restore_data_files()
 
 
 if __name__ == "__main__":
