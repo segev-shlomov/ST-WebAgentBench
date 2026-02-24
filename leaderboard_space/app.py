@@ -195,7 +195,7 @@ def _init_persistence() -> bool:
         logger.warning("No HF token found — data persistence disabled (HF_TOKEN not in env)")
         return False
 
-    logger.info("HF_TOKEN found, initializing persistence...")
+    logger.warning("HF_TOKEN found, initializing persistence...")
     api = HfApi(token=token)
 
     try:
@@ -225,7 +225,7 @@ def _init_persistence() -> bool:
             squash_history=True,
             hf_api=api,
         )
-        logger.info(
+        logger.warning(
             "CommitScheduler started — persisting to %s every 2 min",
             _DATA_REPO_ID,
         )
@@ -2240,12 +2240,12 @@ contact details.
 _PERSISTENCE_ENABLED = _init_persistence()
 
 if _PERSISTENCE_ENABLED:
-    logger.info("Persistence OK — data will survive Space rebuilds")
+    logger.warning("Persistence OK — data will survive Space rebuilds")
     for _f in ["key_requests.jsonl", "submissions.jsonl", "admin_audit.jsonl"]:
         _p = _DATA_DIR / _f
         if _p.exists() and _p.stat().st_size > 0:
             _count = sum(1 for line in _p.read_text().strip().split("\n") if line.strip())
-            logger.info("  %s: %d records", _f, _count)
+            logger.warning("  %s: %d records", _f, _count)
 else:
     logger.error(
         "PERSISTENCE DISABLED — set HF_TOKEN as a Space secret with write "
