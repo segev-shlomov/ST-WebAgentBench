@@ -14,7 +14,9 @@ import json
 import logging
 import os
 import re
+import tempfile
 import traceback
+from collections import Counter
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
@@ -1059,27 +1061,150 @@ def admin_remove_submission(agent_id: str, password: str):
     return f"Removed {removed} submission(s) with agent_id '{agent_id}'."
 
 
-def admin_view_key_requests(password: str) -> str:
-    """Show all key requests (admin only)."""
+def admin_build_key_dashboard(password: str):
+    """Build comprehensive key request dashboard (admin only).
+
+    Returns (stats_markdown, dataframe, timeline_plot, institution_plot, csv_file).
+    """
+    empty = (
+        "*Enter password and click Load Dashboard*",
+        pd.DataFrame(),
+        _empty_figure("No data", 350),
+        _empty_figure("No data", 300),
+        None,
+    )
+
     admin_pw = _get_admin_password()
     if not admin_pw:
-        return "Admin password not configured. Set ADMIN_PASSWORD in Space secrets."
+        return ("Admin password not configured.", *empty[1:])
     if password != admin_pw:
-        return "Invalid admin password."
+        return ("Invalid admin password.", *empty[1:])
 
     requests = _load_key_requests()
     if not requests:
-        return "No key requests yet."
+        return ("No key requests yet.", *empty[1:])
 
-    lines = [f"Total key requests: {len(requests)}\n"]
-    for i, r in enumerate(requests, 1):
-        lines.append(
-            f"{i}. {r.get('email', '?')} | "
-            f"Team: {r.get('team', '?')} | "
-            f"Institution: {r.get('institution', '-')} | "
-            f"Time: {r.get('timestamp', '?')}"
+    # ---- Build DataFrame ----
+    df = pd.DataFrame(requests)
+    df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce", utc=True)
+    df = df.sort_values("timestamp", ascending=False).reset_index(drop=True)
+
+    # ---- Summary Statistics ----
+    total = len(df)
+    unique_emails = df["email"].nunique()
+    unique_teams = df["team"].nunique()
+    inst_series = df["institution"].replace("", pd.NA).dropna()
+    unique_institutions = inst_series.nunique()
+
+    now_utc = datetime.now(timezone.utc)
+    last_7d = int(df[df["timestamp"] >= (now_utc - pd.Timedelta(days=7))].shape[0])
+    last_30d = int(df[df["timestamp"] >= (now_utc - pd.Timedelta(days=30))].shape[0])
+
+    ts_min = df["timestamp"].min()
+    ts_max = df["timestamp"].max()
+    earliest = ts_min.strftime("%Y-%m-%d") if pd.notna(ts_min) else "N/A"
+    latest = ts_max.strftime("%Y-%m-%d") if pd.notna(ts_max) else "N/A"
+
+    email_counts = Counter(df["email"])
+    repeat_users = {e: c for e, c in email_counts.items() if c > 1}
+    repeat_str = f"{len(repeat_users)} user(s)" if repeat_users else "None"
+
+    team_counts = Counter(df["team"])
+    top_teams = team_counts.most_common(5)
+    top_teams_str = ", ".join(f"{t} ({c})" for t, c in top_teams) if top_teams else "N/A"
+
+    inst_counts = Counter(inst_series)
+    top_insts = inst_counts.most_common(5)
+    top_insts_str = ", ".join(f"{t} ({c})" for t, c in top_insts) if top_insts else "N/A"
+
+    stats_md = (
+        "### Key Request Statistics\n"
+        "| Metric | Value |\n"
+        "|:--|:--|\n"
+        f"| **Total Requests** | {total} |\n"
+        f"| **Unique Emails** | {unique_emails} |\n"
+        f"| **Unique Teams** | {unique_teams} |\n"
+        f"| **Unique Institutions** | {unique_institutions} |\n"
+        f"| **Last 7 Days** | {last_7d} |\n"
+        f"| **Last 30 Days** | {last_30d} |\n"
+        f"| **Date Range** | {earliest} to {latest} |\n"
+        f"| **Repeat Requesters** | {repeat_str} |\n"
+        f"| **Top Teams** | {top_teams_str} |\n"
+        f"| **Top Institutions** | {top_insts_str} |\n"
+    )
+
+    # ---- Timeline Chart (Cumulative) ----
+    timeline_fig = _empty_figure("No valid timestamps", 350)
+    if pd.notna(df["timestamp"]).any():
+        daily = (
+            df.set_index("timestamp")
+            .resample("D")
+            .size()
+            .cumsum()
+            .reset_index(name="cumulative")
         )
-    return "\n".join(lines)
+        daily.columns = ["date", "cumulative"]
+        timeline_fig = go.Figure()
+        timeline_fig.add_trace(go.Scatter(
+            x=daily["date"],
+            y=daily["cumulative"],
+            mode="lines+markers",
+            line=dict(color=PLOTLY_COLORWAY[0], width=2),
+            marker=dict(size=4),
+            name="Cumulative Requests",
+            fill="tozeroy",
+            fillcolor="rgba(59, 130, 246, 0.1)",
+        ))
+        timeline_fig.update_layout(**_plotly_layout(
+            title="Key Requests Over Time (Cumulative)",
+            xaxis_title="Date",
+            yaxis_title="Total Requests",
+            height=350,
+            xaxis=dict(gridcolor=PLOTLY_GRID_COLOR),
+            yaxis=dict(gridcolor=PLOTLY_GRID_COLOR, rangemode="tozero"),
+        ))
+
+    # ---- Institution Bar Chart ----
+    if inst_counts:
+        top_n = 10
+        sorted_insts = inst_counts.most_common(top_n)
+        inst_names = [x[0] for x in reversed(sorted_insts)]
+        inst_vals = [x[1] for x in reversed(sorted_insts)]
+        inst_fig = go.Figure(go.Bar(
+            x=inst_vals,
+            y=inst_names,
+            orientation="h",
+            marker_color=PLOTLY_COLORWAY[1],
+        ))
+        inst_fig.update_layout(**_plotly_layout(
+            title=f"Top {min(top_n, len(sorted_insts))} Institutions",
+            xaxis_title="Requests",
+            height=max(250, 40 * len(sorted_insts) + 100),
+            yaxis=dict(tickfont=dict(size=11)),
+            xaxis=dict(gridcolor=PLOTLY_GRID_COLOR, dtick=1),
+        ))
+    else:
+        inst_fig = _empty_figure("No institutions recorded", 300)
+
+    # ---- Display DataFrame ----
+    display_df = df.copy()
+    display_df["timestamp"] = display_df["timestamp"].dt.strftime("%Y-%m-%d %H:%M UTC")
+    display_df.insert(0, "#", range(1, len(display_df) + 1))
+    display_df.columns = ["#", "Email", "Team", "Institution", "Timestamp"]
+
+    # ---- CSV export ----
+    csv_path = None
+    try:
+        tmp = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".csv", prefix="key_requests_", delete=False,
+        )
+        display_df.to_csv(tmp.name, index=False)
+        tmp.close()
+        csv_path = tmp.name
+    except Exception:
+        pass
+
+    return stats_md, display_df, timeline_fig, inst_fig, csv_path
 
 
 def admin_login(password: str):
@@ -1763,16 +1888,40 @@ contact details.
                                 api_name=False,
                             )
 
-                        with gr.Accordion("Key Request Log", open=False):
-                            gr.Markdown("View all signing key requests (email, team, institution, timestamp).")
+                        with gr.Accordion("Key Request Dashboard", open=False):
+                            gr.Markdown(
+                                "Comprehensive view of all signing key requests. "
+                                "Enter admin password and click **Load Dashboard**."
+                            )
                             admin_key_password = gr.Textbox(label="Admin Password", type="password")
-                            admin_key_btn = gr.Button("View Key Requests")
-                            admin_key_log = gr.Textbox(label="Key Requests", interactive=False, lines=20)
+                            admin_key_btn = gr.Button("Load Dashboard", variant="secondary")
+
+                            admin_key_stats = gr.Markdown(
+                                value="*Enter password and click Load Dashboard*"
+                            )
+                            with gr.Row():
+                                admin_timeline_plot = gr.Plot(label="Requests Over Time")
+                                admin_inst_plot = gr.Plot(label="Requests by Institution")
+                            admin_key_table = gr.Dataframe(
+                                label="All Key Requests (newest first)",
+                                interactive=False,
+                                wrap=True,
+                            )
+                            admin_csv_download = gr.File(
+                                label="Download CSV",
+                                interactive=False,
+                            )
 
                             admin_key_btn.click(
-                                admin_view_key_requests,
+                                admin_build_key_dashboard,
                                 inputs=[admin_key_password],
-                                outputs=[admin_key_log],
+                                outputs=[
+                                    admin_key_stats,
+                                    admin_key_table,
+                                    admin_timeline_plot,
+                                    admin_inst_plot,
+                                    admin_csv_download,
+                                ],
                                 api_name=False,
                             )
 
