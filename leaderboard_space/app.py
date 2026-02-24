@@ -1410,8 +1410,15 @@ def admin_build_key_dashboard(session_token: str):
     # ---- Display DataFrame ----
     display_df = df.copy()
     display_df["timestamp"] = display_df["timestamp"].dt.strftime("%Y-%m-%d %H:%M UTC")
+    # Re-derive signing key for each email (deterministic from master key)
+    if _get_master_key():
+        display_df["key"] = display_df["email"].apply(
+            lambda e: derive_user_key(e)[:16] + "..."
+        )
+    else:
+        display_df["key"] = "N/A (no master key)"
     display_df.insert(0, "#", range(1, len(display_df) + 1))
-    display_df.columns = ["#", "Email", "Team", "Institution", "Timestamp"]
+    display_df.columns = ["#", "Email", "Team", "Institution", "Timestamp", "Signing Key (truncated)"]
 
     # ---- CSV export (owner-only permissions) ----
     csv_path = None
