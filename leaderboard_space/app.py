@@ -494,17 +494,23 @@ CUSTOM_CSS = """
 }
 
 /* === Tables (Dataframe) === */
-.table-wrap {
+.table-wrap,
+#leaderboard-table .table-wrap,
+#leaderboard-table [class*="table"] {
     border-radius: 12px !important;
     overflow-x: auto !important;
     border: 1px solid #e2e8f0 !important;
 }
-.table-wrap table {
+.table-wrap table,
+#leaderboard-table table {
     border-collapse: collapse !important;
-    width: 100% !important;
-    table-layout: auto !important;
+    width: max-content !important;
+    min-width: 100% !important;
+    table-layout: fixed !important;
 }
-.table-wrap table thead th {
+.table-wrap table thead th,
+#leaderboard-table table thead th,
+#leaderboard-table th {
     background: #f1f5f9 !important;
     color: #334155 !important;
     font-weight: 600 !important;
@@ -514,15 +520,26 @@ CUSTOM_CSS = """
     padding: 12px 16px !important;
     border-bottom: 2px solid #e2e8f0 !important;
     white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
 }
-.table-wrap table tbody td {
+.table-wrap table tbody td,
+#leaderboard-table table tbody td,
+#leaderboard-table td {
     padding: 10px 16px !important;
     font-size: 0.88rem !important;
     border-bottom: 1px solid #f1f5f9 !important;
     white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
 }
-.table-wrap table tbody tr:hover {
+.table-wrap table tbody tr:hover,
+#leaderboard-table table tbody tr:hover {
     background: #eff6ff !important;
+}
+/* Force horizontal layout for Gradio 6 dataframe cells */
+#leaderboard-table .cell-wrap {
+    white-space: nowrap !important;
 }
 
 /* === Accordion (FAQ) === */
@@ -1525,6 +1542,8 @@ def create_app() -> gr.Blocks:
         link_text_color_active="*primary_800",
     )
 
+    gr.set_static_paths(paths=["assets"])
+
     with gr.Blocks(
         title="ST-WebAgentBench Leaderboard",
         theme=theme,
@@ -1588,6 +1607,7 @@ def create_app() -> gr.Blocks:
                     interactive=False,
                     label="Ranked by CuP (Completion under Policy)",
                     elem_id="leaderboard-table",
+                    wrap=False,
                     column_widths=["60px", "140px", "120px", "120px", "70px", "70px", "70px", "80px", "80px", "80px", "60px", "100px"],
                 )
 
