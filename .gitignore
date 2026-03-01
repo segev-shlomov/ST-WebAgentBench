@@ -161,3 +161,10 @@ assets/macos_artifacts/
 
 # Test submission files (generated, never upload to real leaderboard)
 tests/test_submission_*.json
+
+# Backup/temp task data files
+stwebagentbench/test.raw.json.bak*
+stwebagentbench/test.raw.json.fixed_temp
+
+# Internal analysis artifacts
+.task_analysis/
