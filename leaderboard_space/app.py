@@ -734,10 +734,11 @@ _EMAIL_RE = re.compile(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
 # Constants
 # ---------------------------------------------------------------------------
 
+_APP_DIR = Path(__file__).resolve().parent
 SUBMISSIONS_FILE = Path("data/submissions.jsonl")
 KEY_REQUESTS_FILE = Path("data/key_requests.jsonl")
-TASKS_FILE = Path("data/test.raw.json")
-CANONICAL_HASHES_FILE = Path("data/canonical_hashes.json")
+TASKS_FILE = _APP_DIR / "data" / "test.raw.json"
+CANONICAL_HASHES_FILE = _APP_DIR / "data" / "canonical_hashes.json"
 
 
 # ---------------------------------------------------------------------------

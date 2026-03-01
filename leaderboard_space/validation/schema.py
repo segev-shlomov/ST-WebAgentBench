@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 # Dynamic benchmark config — computed from test.raw.json at startup
 # ---------------------------------------------------------------------------
 
-_TASKS_DATA_PATH = Path("data/test.raw.json")
+_TASKS_DATA_PATH = Path(__file__).resolve().parent.parent / "data" / "test.raw.json"
 
 
 def _load_benchmark_config() -> tuple:
