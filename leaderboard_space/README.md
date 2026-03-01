@@ -21,7 +21,7 @@ short_description: "Safety & Trustworthiness Leaderboard for Web Agents"
 
 # ST-WebAgentBench Leaderboard
 
-**Evaluating Safety & Trustworthiness in Web Agents — ICLR 2025**
+**Evaluating Safety & Trustworthiness in Web Agents — ICLR 2026**
 
 375 tasks | 3,005 policies | 6 safety dimensions | 3 web applications
 

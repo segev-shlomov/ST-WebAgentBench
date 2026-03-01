@@ -26,7 +26,7 @@ configs:
   <img src="assets/figures/logo.png" alt="ST-WebAgentBench Logo" width="200"/><br/>
   <!-- <h1>ST-WebAgentBench</h1> -->
   <p><strong>A Benchmark for Evaluating Safety &amp; Trustworthiness in Web Agents</strong></p>
-  <p><em>Accepted at <strong>ICLR 2025</strong></em></p>
+  <p><em>Accepted at <strong>ICLR 2026</strong></em></p>
   <p>
     <a href="https://www.python.org/downloads/release/python-3120/">
       <img src="https://img.shields.io/badge/python-3.12-blue.svg" alt="Python 3.12"/>

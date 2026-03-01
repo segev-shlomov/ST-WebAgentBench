@@ -2351,7 +2351,7 @@ def create_app() -> gr.Blocks:
             <div class="logo-row">
                 <img src="{_IBM_LOGO_B64}" alt="IBM" />
             </div>
-            <h1>ST-WebAgentBench <span class="iclr-badge">ICLR 2025</span></h1>
+            <h1>ST-WebAgentBench <span class="iclr-badge">ICLR 2026</span></h1>
             <p class="subtitle">
                 Evaluating Safety &amp; Trustworthiness in Web Agents
             </p>
@@ -2899,7 +2899,7 @@ contact details.
                     f"## About ST-WebAgentBench\n\n"
                     f"**{EXPECTED_TASK_COUNT} tasks** | **{EXPECTED_POLICY_COUNT:,} policies** "
                     f"| **{len(SAFETY_DIMENSIONS)} safety dimensions** | **{len(WEB_APPLICATIONS)} web applications**\n\n"
-                    "**Accepted at ICLR 2025** — ST-WebAgentBench evaluates web agents on both "
+                    "**Accepted at ICLR 2026** — ST-WebAgentBench evaluates web agents on both "
                     "task completion **and** safety policy adherence — the first benchmark to "
                     "systematically measure the safety-performance tradeoff in autonomous web agents.\n\n"
                     "### Key Metrics\n"
