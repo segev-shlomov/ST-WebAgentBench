@@ -9,6 +9,7 @@ Displays benchmark results with:
 """
 
 import base64
+import fcntl
 import hashlib
 import hmac as _hmac
 import json
@@ -739,6 +740,7 @@ SUBMISSIONS_FILE = _APP_DIR / "data" / "submissions.jsonl"
 KEY_REQUESTS_FILE = _APP_DIR / "data" / "key_requests.jsonl"
 TASKS_FILE = _APP_DIR / "data" / "test.raw.json"
 CANONICAL_HASHES_FILE = _APP_DIR / "data" / "canonical_hashes.json"
+ADMIN_AUDIT_FILE = _APP_DIR / "data" / "admin_audit.jsonl"  # override relative path above
 
 
 # ---------------------------------------------------------------------------
@@ -1276,8 +1278,11 @@ def load_submissions() -> list[dict]:
 
 
 def save_submission(submission: dict) -> None:
-    """Append a submission to the JSONL data file (with file locking)."""
-    import fcntl
+    """Append a submission to the JSONL data file (with file locking).
+
+    Also saves an individual JSON file under data/submissions/{agent_id}/{run_id}.json
+    for organized storage in the private HF dataset repo.
+    """
     SUBMISSIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(SUBMISSIONS_FILE, "a") as f:
         fcntl.flock(f.fileno(), fcntl.LOCK_EX)
@@ -1286,6 +1291,23 @@ def save_submission(submission: dict) -> None:
             f.flush()
         finally:
             fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+
+    # Save individual submission file for organized storage
+    try:
+        agent_id = submission.get("metadata", {}).get("agent_id", "unknown")
+        run_id = submission.get("integrity", {}).get("run_id", "unknown")
+        # Sanitize for filesystem safety
+        safe_agent = re.sub(r"[^\w\-.]", "_", agent_id)[:64]
+        safe_run = re.sub(r"[^\w\-.]", "_", run_id)[:64]
+
+        sub_dir = _DATA_DIR / "submissions" / safe_agent
+        sub_dir.mkdir(parents=True, exist_ok=True)
+        sub_file = sub_dir / f"{safe_run}.json"
+        with open(sub_file, "w") as f:
+            json.dump(submission, f, indent=2)
+        logger.info("Saved submission file: %s", sub_file.relative_to(_DATA_DIR))
+    except Exception:
+        logger.warning("Failed to save individual submission file", exc_info=True)
 
 
 # ---------------------------------------------------------------------------
@@ -1345,20 +1367,30 @@ def build_main_table(submissions: list[dict], sort_by: str = "CuP",
         if open_only and not meta.get("is_open_source"):
             continue
         status = s.get("status", "published")
-        if verified_only and status not in ("verified", "published"):
+        if verified_only and status not in ("verified", "published", "admin_override"):
             continue
 
-        cr = metrics.get("CR", 0)
-        cup = metrics.get("CuP", 0)
-        gap = ((cup - cr) / cr * 100) if cr > 0 else 0
+        def _safe_float(val, default=0.0):
+            """Convert to float safely, returning default for missing/invalid."""
+            if val is None:
+                return default
+            try:
+                return float(val)
+            except (TypeError, ValueError):
+                return default
+
+        cr = _safe_float(metrics.get("CR"))
+        cup = _safe_float(metrics.get("CuP"))
+        gap = ((cup - cr) / cr * 100) if cr > 0 else 0.0
 
         # Average risk from dimensions
         dims = results.get("dimensions", [])
-        avg_risk = 0
+        avg_risk = 0.0
         if dims:
-            risk_values = [d.get("active_risk_ratio", 0) for d in dims]
-            avg_risk = sum(risk_values) / len(risk_values) if risk_values else 0
+            risk_values = [_safe_float(d.get("active_risk_ratio", 0)) for d in dims]
+            avg_risk = sum(risk_values) / len(risk_values) if risk_values else 0.0
 
+        semi_cup = _safe_float(metrics.get("semi_CuP"))
         date_str = s.get("submission_date", "")[:10]
 
         rows.append({
@@ -1368,11 +1400,11 @@ def build_main_table(submissions: list[dict], sort_by: str = "CuP",
             "CuP": round(cup, 3),
             "CR": round(cr, 3),
             "Gap%": round(gap, 1),
-            "semi-CuP": round(metrics.get("semi_CuP", 0), 3),
+            "semi-CuP": round(semi_cup, 3),
             "Avg Risk": round(avg_risk, 3),
-            "Status": status.capitalize() if isinstance(status, str) else "Published",
+            "Status": status.replace("_", " ").title() if isinstance(status, str) else "Published",
             "Open": "Yes" if meta.get("is_open_source") else "No",
-            "Date": date_str,
+            "Date": date_str if date_str else "--",
         })
 
     df = pd.DataFrame(rows)
@@ -1712,26 +1744,30 @@ def validate_upload_full(file) -> tuple[str, Optional[dict], str]:
         return "rejected", None, f"REJECTED: Schema validation failed — {e}"
 
     # --- Layer 2: Structural validation + integrity ---
-    tasks_data = _load_tasks_data()
-    canonical_hashes = _load_canonical_hashes()
+    try:
+        tasks_data = _load_tasks_data()
+        canonical_hashes = _load_canonical_hashes()
 
-    # Derive the expected per-user signing key from the submission's contact email
-    user_signing_key = None
-    if _get_master_key():
-        contact_email = (
-            submission.metadata.contact_email
-            if submission.metadata and submission.metadata.contact_email
-            else ""
+        # Derive the expected per-user signing key from the submission's contact email
+        user_signing_key = None
+        if _get_master_key():
+            contact_email = (
+                submission.metadata.contact_email
+                if submission.metadata and submission.metadata.contact_email
+                else ""
+            )
+            if contact_email:
+                user_signing_key = derive_user_key(contact_email)
+
+        structural_errors = validate_submission(
+            submission,
+            tasks_data=tasks_data,
+            canonical_hashes=canonical_hashes,
+            signing_key=user_signing_key,
         )
-        if contact_email:
-            user_signing_key = derive_user_key(contact_email)
-
-    structural_errors = validate_submission(
-        submission,
-        tasks_data=tasks_data,
-        canonical_hashes=canonical_hashes,
-        signing_key=user_signing_key,
-    )
+    except Exception as e:
+        logger.exception("Structural validation crashed")
+        return "rejected", None, f"REJECTED: Internal error during structural validation — {e}"
 
     hard_errors = [e for e in structural_errors
                    if "missing" in e.lower() or "mismatch" in e.lower()
@@ -1743,6 +1779,8 @@ def validate_upload_full(file) -> tuple[str, Optional[dict], str]:
         report_lines.append(f"Structural validation: FAIL ({len(hard_errors)} errors)")
         for err in hard_errors[:10]:
             report_lines.append(f"  ERROR: {err}")
+        if len(hard_errors) > 10:
+            report_lines.append(f"  ... and {len(hard_errors) - 10} more errors")
         if soft_warnings:
             report_lines.append(f"  + {len(soft_warnings)} warnings")
         return "rejected", None, "REJECTED\n\n" + "\n".join(report_lines)
@@ -1751,11 +1789,18 @@ def validate_upload_full(file) -> tuple[str, Optional[dict], str]:
         report_lines.append(f"Structural validation: WARN ({len(soft_warnings)} warnings)")
         for w in soft_warnings[:5]:
             report_lines.append(f"  WARN: {w}")
+        if len(soft_warnings) > 5:
+            report_lines.append(f"  ... and {len(soft_warnings) - 5} more warnings")
     else:
         report_lines.append("Structural validation: PASS")
 
     # --- Layer 3: Metric recomputation ---
-    metric_discrepancies = recompute_metrics_from_evidence(submission)
+    try:
+        metric_discrepancies = recompute_metrics_from_evidence(submission)
+    except Exception as e:
+        logger.exception("Metric recomputation crashed")
+        return "rejected", None, f"REJECTED: Internal error during metric recomputation — {e}"
+
     metric_errors = [d for d in metric_discrepancies if "mismatch" in d.lower()]
     metric_warnings = [d for d in metric_discrepancies if d not in metric_errors]
 
@@ -1763,6 +1808,8 @@ def validate_upload_full(file) -> tuple[str, Optional[dict], str]:
         report_lines.append(f"Metric recomputation: FAIL ({len(metric_errors)} discrepancies)")
         for err in metric_errors[:5]:
             report_lines.append(f"  ERROR: {err}")
+        if len(metric_errors) > 5:
+            report_lines.append(f"  ... and {len(metric_errors) - 5} more discrepancies")
         return "rejected", None, "REJECTED\n\n" + "\n".join(report_lines)
 
     if metric_warnings:
@@ -1771,31 +1818,45 @@ def validate_upload_full(file) -> tuple[str, Optional[dict], str]:
         report_lines.append("Metric recomputation: PASS")
 
     # --- Layer 4: Statistical anomaly detection ---
-    anomaly_flags = detect_anomalies(submission)
+    try:
+        anomaly_flags = detect_anomalies(submission)
+    except Exception as e:
+        logger.exception("Anomaly detection crashed")
+        anomaly_flags = [f"Anomaly detection error: {e}"]
+
     if anomaly_flags:
         report_lines.append(f"Anomaly detection: {len(anomaly_flags)} flag(s)")
         for flag in anomaly_flags[:5]:
             report_lines.append(f"  FLAG: {flag}")
+        if len(anomaly_flags) > 5:
+            report_lines.append(f"  ... and {len(anomaly_flags) - 5} more flags")
     else:
         report_lines.append("Anomaly detection: PASS (no flags)")
 
     # --- Layer 5: Anti-gaming ---
-    existing = load_submissions()
-    history = [
-        {
-            "submitter_email": s.get("metadata", {}).get("contact_email", ""),
-            "timestamp": s.get("submission_date", ""),
-            "manifest_hash": s.get("integrity", {}).get("manifest_hash", ""),
-            "run_id": s.get("integrity", {}).get("run_id", ""),
-            "organization": s.get("metadata", {}).get("team", ""),
-        }
-        for s in existing
-    ]
-    gaming_issues = validate_anti_gaming(submission, history)
+    try:
+        existing = load_submissions()
+        history = [
+            {
+                "submitter_email": s.get("metadata", {}).get("contact_email", ""),
+                "timestamp": s.get("submission_date", ""),
+                "manifest_hash": s.get("integrity", {}).get("manifest_hash", ""),
+                "run_id": s.get("integrity", {}).get("run_id", ""),
+                "organization": s.get("metadata", {}).get("team", ""),
+            }
+            for s in existing
+        ]
+        gaming_issues = validate_anti_gaming(submission, history)
+    except Exception as e:
+        logger.exception("Anti-gaming validation crashed")
+        return "rejected", None, f"REJECTED: Internal error during anti-gaming check — {e}"
+
     if gaming_issues:
         report_lines.append(f"Anti-gaming: FAIL ({len(gaming_issues)} issues)")
         for issue in gaming_issues[:5]:
             report_lines.append(f"  ERROR: {issue}")
+        if len(gaming_issues) > 5:
+            report_lines.append(f"  ... and {len(gaming_issues) - 5} more issues")
         return "rejected", None, "REJECTED\n\n" + "\n".join(report_lines)
 
     report_lines.append("Anti-gaming: PASS")
@@ -1816,21 +1877,35 @@ def process_upload(file):
 
     Returns (result_text, updated_table, updated_agent_choices).
     """
-    status, data, report = validate_upload_full(file)
+    def _current_state():
+        """Helper to return current table + agent choices for error returns."""
+        try:
+            subs = load_submissions()
+            choices = [s.get("metadata", {}).get("agent_id", "?") for s in subs]
+            return build_main_table(subs), gr.update(choices=choices)
+        except Exception:
+            return pd.DataFrame(), gr.update(choices=[])
+
+    try:
+        status, data, report = validate_upload_full(file)
+    except Exception as e:
+        logger.exception("Unexpected error during validation")
+        table, choices = _current_state()
+        return f"REJECTED: Internal validation error — {e}", table, choices
 
     if data is None:
-        subs = load_submissions()
-        agent_choices = [s.get("metadata", {}).get("agent_id", "?") for s in subs]
-        return (
-            report,
-            build_main_table(subs),
-            gr.update(choices=agent_choices),
-        )
+        table, choices = _current_state()
+        return report, table, choices
 
     # Add status and save
     data["status"] = status
     data["verified_at"] = datetime.now(timezone.utc).isoformat()
-    save_submission(data)
+    try:
+        save_submission(data)
+    except Exception as e:
+        logger.exception("Failed to save submission")
+        table, choices = _current_state()
+        return f"Validation passed but save failed — {e}. Please retry.", table, choices
 
     metrics = data.get("results", {}).get("metrics", {})
     subs = load_submissions()
@@ -1898,20 +1973,106 @@ def admin_remove_submission(agent_id: str, run_id: str, session_token: str):
     filtered = [s for s in subs if not matches(s)]
     removed = len(subs) - len(filtered)
 
-    import fcntl
-    with open(SUBMISSIONS_FILE, "w") as f:
-        fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-        try:
-            f.write("\n".join(json.dumps(s) for s in filtered) + ("\n" if filtered else ""))
+    # Atomic write: write to temp file, then rename (prevents data loss on failure)
+    tmp_path = SUBMISSIONS_FILE.with_suffix(".tmp")
+    try:
+        with open(tmp_path, "w") as f:
+            for s in filtered:
+                f.write(json.dumps(s) + "\n")
             f.flush()
-        finally:
-            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+            os.fsync(f.fileno())
+        os.replace(tmp_path, SUBMISSIONS_FILE)
+    except Exception:
+        if tmp_path.exists():
+            tmp_path.unlink()
+        raise
 
     detail = f"agent_id={agent_id}" if agent_id else ""
     if run_id:
         detail += f"{', ' if detail else ''}run_id={run_id}"
     _log_admin_action("remove_submission", f"Removed {removed} submission(s): {detail}")
     return f"Removed {removed} submission(s) ({detail})."
+
+
+def admin_force_add_submission(file, reason: str, session_token: str):
+    """Force-add a submission bypassing all validation (admin-only, session-gated).
+
+    Performs only minimal sanity checks:
+    - Valid JSON
+    - Pydantic schema parses (so the leaderboard can display it)
+
+    Marks submission with status="admin_override" for full traceability.
+    Returns (result_message, updated_table, validation_report).
+    """
+    def _table():
+        """Current leaderboard table (safe fallback on error)."""
+        try:
+            return build_main_table(load_submissions())
+        except Exception:
+            return pd.DataFrame()
+
+    if not _verify_session(session_token):
+        return "Session expired — please log in again.", _table(), ""
+
+    reason = (reason or "").strip()
+    if not reason:
+        return "Reason is required for audit trail.", _table(), ""
+
+    if file is None:
+        return "No file uploaded.", _table(), ""
+
+    # --- Minimal sanity: parse JSON ---
+    try:
+        file_path = file.name if hasattr(file, "name") else str(file)
+        with open(file_path, "r") as f:
+            data = json.load(f)
+    except json.JSONDecodeError as e:
+        return f"Invalid JSON — {e}", _table(), ""
+    except Exception as e:
+        return f"Could not read file — {e}", _table(), ""
+
+    # --- Minimal sanity: Pydantic schema must parse (leaderboard needs valid structure) ---
+    try:
+        Submission(**data)
+    except Exception as e:
+        return (
+            f"Schema validation failed — cannot force-add a structurally invalid submission.\n{e}",
+            _table(),
+            "",
+        )
+
+    # --- Run validation in report-only mode (so admin sees what was bypassed) ---
+    try:
+        _status, _data, report = validate_upload_full(file)
+        report = f"Normal validation would have returned: {_status.upper()}\n\n{report}"
+    except Exception as e:
+        report = f"Validation crashed (this is what you're bypassing): {e}"
+
+    # --- Force-add with admin_override status ---
+    agent_id = data.get("metadata", {}).get("agent_id", "unknown")
+    data["status"] = "admin_override"
+    data["verified_at"] = datetime.now(timezone.utc).isoformat()
+    data["admin_override_reason"] = reason
+
+    try:
+        save_submission(data)
+    except Exception as e:
+        return f"Save failed — {e}", _table(), report
+
+    _log_admin_action("force_add_submission", f"Agent: {agent_id}, Reason: {reason}")
+
+    metrics = data.get("results", {}).get("metrics", {})
+    cr_val = metrics.get("CR", 0) or 0
+    cup_val = metrics.get("CuP", 0) or 0
+    result = (
+        f"Force-added successfully.\n"
+        f"Agent: {agent_id}\n"
+        f"CR: {cr_val:.3f} | CuP: {cup_val:.3f}\n"
+        f"Status: admin_override\n"
+        f"Reason: {reason}"
+    )
+
+    return result, _table(), report
 
 
 def admin_build_key_dashboard(session_token: str):
@@ -2231,7 +2392,7 @@ def create_app() -> gr.Blocks:
                         value="CuP", label="Sort by",
                     )
                     model_filter = gr.Dropdown(
-                        choices=["All", "GPT-4", "Claude", "Llama", "Gemini", "Qwen"],
+                        choices=["All", "GPT-4", "Llama", "Gemini", "Qwen", "Mistral"],
                         value="All", label="Model Family",
                     )
                     open_only = gr.Checkbox(label="Open-source only", value=False)
@@ -2245,9 +2406,13 @@ def create_app() -> gr.Blocks:
                 )
 
                 def update_table(sort_val, model_val, open_val, verified_val):
-                    subs = load_submissions()
-                    df = build_main_table(subs, sort_val, model_val, open_val, verified_val)
-                    return gr.update(value=df)
+                    try:
+                        subs = load_submissions()
+                        df = build_main_table(subs, sort_val, model_val, open_val, verified_val)
+                        return gr.update(value=df)
+                    except Exception as e:
+                        logger.exception("Failed to update leaderboard table")
+                        return gr.update(value=pd.DataFrame())
 
                 for control in [sort_by, model_filter, open_only, verified_only]:
                     control.change(
@@ -2287,8 +2452,12 @@ def create_app() -> gr.Blocks:
                 )
 
                 def update_radar(selected):
-                    subs = load_submissions()
-                    return build_radar_chart(subs, selected or [])
+                    try:
+                        subs = load_submissions()
+                        return build_radar_chart(subs, selected or [])
+                    except Exception as e:
+                        logger.exception("Failed to update radar chart")
+                        return _empty_figure("Error loading chart", 400)
 
                 agent_selector.change(update_radar, inputs=[agent_selector], outputs=[radar_chart], api_name=False)
 
@@ -2532,7 +2701,7 @@ This runs schema validation and metric recomputation without creating a submissi
 `agent_id` must contain only **alphanumeric characters, hyphens, underscores, and dots**
 (regex: `^[a-zA-Z0-9_\-\.]+$`). Maximum 128 characters.
 
-Examples: `my-agent-v1`, `gpt4o_baseline.2024`, `ReAct.Claude3`
+Examples: `my-agent-v1`, `gpt4o_baseline.2024`, `ReAct.Llama3`
                     """)
 
                 # ---- Section: Validation Errors ----
@@ -2791,6 +2960,41 @@ contact details.
                                 admin_remove_submission,
                                 inputs=[admin_agent_id, admin_run_id, admin_session],
                                 outputs=[admin_result],
+                                api_name=False,
+                            )
+
+                        with gr.Accordion("Force-Add Submission (bypass validation)", open=False):
+                            gr.Markdown(
+                                "Upload a submission JSON that **bypasses all validation layers**. "
+                                "The submission must still be structurally valid (parseable by Pydantic). "
+                                "A mandatory reason is logged to the audit trail, and the submission "
+                                "is publicly marked as **Admin Override** on the leaderboard."
+                            )
+                            admin_upload_file = gr.File(
+                                label="Submission JSON",
+                                file_types=[".json"],
+                            )
+                            admin_override_reason = gr.Textbox(
+                                label="Reason (required — logged to audit trail)",
+                                placeholder="e.g. Trusted baseline, hash mismatch due to hotfix",
+                            )
+                            admin_force_btn = gr.Button(
+                                "Force Add (bypass validation)",
+                                variant="stop",
+                            )
+                            admin_force_result = gr.Textbox(
+                                label="Result", interactive=False, lines=5,
+                            )
+                            admin_force_report = gr.Textbox(
+                                label="Validation Report (what would have failed)",
+                                interactive=False,
+                                lines=10,
+                            )
+
+                            admin_force_btn.click(
+                                admin_force_add_submission,
+                                inputs=[admin_upload_file, admin_override_reason, admin_session],
+                                outputs=[admin_force_result, leaderboard_table, admin_force_report],
                                 api_name=False,
                             )
 
