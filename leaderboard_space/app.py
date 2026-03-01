@@ -735,8 +735,8 @@ _EMAIL_RE = re.compile(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
 # ---------------------------------------------------------------------------
 
 _APP_DIR = Path(__file__).resolve().parent
-SUBMISSIONS_FILE = Path("data/submissions.jsonl")
-KEY_REQUESTS_FILE = Path("data/key_requests.jsonl")
+SUBMISSIONS_FILE = _APP_DIR / "data" / "submissions.jsonl"
+KEY_REQUESTS_FILE = _APP_DIR / "data" / "key_requests.jsonl"
 TASKS_FILE = _APP_DIR / "data" / "test.raw.json"
 CANONICAL_HASHES_FILE = _APP_DIR / "data" / "canonical_hashes.json"
 
@@ -746,7 +746,7 @@ CANONICAL_HASHES_FILE = _APP_DIR / "data" / "canonical_hashes.json"
 # ---------------------------------------------------------------------------
 
 _DATA_REPO_ID = "dolev31/st-webagentbench-data"
-_DATA_DIR = Path("data")
+_DATA_DIR = _APP_DIR / "data"
 _scheduler: CommitScheduler | None = None
 _PERSISTENCE_ENABLED = False
 
@@ -1684,10 +1684,17 @@ def validate_upload_full(file) -> tuple[str, Optional[dict], str]:
     # Handle both Gradio 4.x (object with .name) and 5.x (filepath string)
     try:
         file_path = file.name if hasattr(file, "name") else str(file)
+        file_size = os.path.getsize(file_path)
+        if file_size > 50_000_000:
+            return "rejected", None, f"REJECTED: File too large ({file_size / 1_000_000:.1f}MB). Maximum is 50MB."
+        if file_size == 0:
+            return "rejected", None, "REJECTED: Empty file uploaded."
         with open(file_path, "r") as f:
             data = json.load(f)
-    except (json.JSONDecodeError, Exception) as e:
+    except json.JSONDecodeError as e:
         return "rejected", None, f"REJECTED: Invalid JSON — {e}"
+    except Exception as e:
+        return "rejected", None, f"REJECTED: Could not read file — {e}"
 
     report_lines = []
 
@@ -1811,7 +1818,7 @@ def process_upload(file):
         return (
             report,
             build_main_table(subs),
-            gr.Dropdown(choices=agent_choices),
+            gr.update(choices=agent_choices),
         )
 
     # Add status and save
@@ -1834,7 +1841,7 @@ def process_upload(file):
     return (
         summary,
         build_main_table(subs),
-        gr.Dropdown(choices=agent_choices),
+        gr.update(choices=agent_choices),
     )
 
 
