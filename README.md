@@ -98,13 +98,13 @@ configs:
 
 **ST-WebAgentBench** is a **policy-enriched** evaluation suite for web agents, built on [BrowserGym](https://github.com/ServiceNow/BrowserGym). It measures not only whether agents *complete* tasks, but whether they do so while **respecting safety and trustworthiness (ST) policies** — the constraints that govern real enterprise deployments.
 
-The benchmark contains **375 realistic enterprise tasks** across three applications, paired with **policy instances** spanning six safety dimensions. Every task is evaluated along two orthogonal axes: *task success* and *policy compliance*, producing the core CuP (Completion under Policy) metric.
+The benchmark contains **375 realistic enterprise tasks** across three applications, paired with **3,057 policy instances** spanning six safety dimensions. Every task is evaluated along two orthogonal axes: *task success* and *policy compliance*, producing the core CuP (Completion under Policy) metric.
 
 Key contributions:
 - **Policy-aware evaluation** that goes beyond raw task completion
 - **3-tier difficulty system** for controlled analysis of policy complexity vs. agent performance
 - **80 modality-challenge tasks** testing vision-only vs. DOM-only information extraction
-- **9 specialized evaluator types** covering consent, navigation, sequences, hallucination, jailbreaking, and more
+- **11 specialized evaluator types** covering consent, navigation, sequences, hallucination, jailbreaking, and more
 - **3-level policy hierarchy** (Organization > User > Task) testing real-world governance structures
 - **Human-in-the-loop** actions (`ask_user`) for testing safe deferral behaviors
 
@@ -114,10 +114,10 @@ Key contributions:
 
 | Application | Tasks | Total Policies | Avg Policies/Task |
 |:--|:--:|:--:|:--:|
-| **WebArena / GitLab** | 197 | 1,511 | 7.7 |
-| **WebArena / ShoppingAdmin** | 8 | 101 | 12.6 |
-| **SuiteCRM** | 170 | — | — |
-| **Total** | **375** | **—** | **—** |
+| **WebArena / GitLab** | 197 | 1,534 | 7.8 |
+| **WebArena / ShoppingAdmin** | 8 | 65 | 8.1 |
+| **SuiteCRM** | 170 | 1,458 | 8.6 |
+| **Total** | **375** | **3,057** | **8.2** |
 
 The SuiteCRM domain includes a **3-tier difficulty system** (60 tasks) and **80 modality-challenge tasks** for analyzing observation modality impact on agent performance.
 
@@ -131,11 +131,11 @@ All policies map to one of six orthogonal safety dimensions:
 
 | Dimension | Policies | Description |
 |:--|:--:|:--|
-| **Boundary & Scope** | 959 | Stay within permitted resources and navigation boundaries |
-| **Strict Execution** | 795 | Execute exactly as instructed — no additions, omissions, or fabrications |
-| **User Consent** | 274 | Obtain explicit approval before sensitive or irreversible actions |
-| **Robustness & Security** | 274 | Resist prompt injection, jailbreaking, and credential leakage |
-| **Hierarchy Adherence** | 132 | Follow the Organization > User > Task policy priority order |
+| **Boundary & Scope** | 1,120 | Stay within permitted resources and navigation boundaries |
+| **Strict Execution** | 959 | Execute exactly as instructed — no additions, omissions, or fabrications |
+| **User Consent** | 322 | Obtain explicit approval before sensitive or irreversible actions |
+| **Robustness & Security** | 386 | Resist prompt injection, jailbreaking, and credential leakage |
+| **Hierarchy Adherence** | 152 | Follow the Organization > User > Task policy priority order |
 | **Error Handling** | 118 | Handle errors, missing parameters, and unexpected states gracefully |
 
 ---
@@ -199,9 +199,9 @@ The SuiteCRM domain includes 60 tasks organized into three difficulty tiers. Eac
 
 | Tier | Task IDs | Tasks | Avg Policies | Total Policies | Relationship |
 |:--|:--:|:--:|:--:|:--:|:--|
-| **Easy** | 235–254 | 20 | 5.6 | 112 | Baseline |
-| **Medium** | 255–274 | 20 | 9.1 | 182 | Easy + 3–4 policies |
-| **Hard** | 275–294 | 20 | 14.1 | 282 | Medium + 4–5 policies |
+| **Easy** | 235–254 | 20 | 7.0 | 140 | Baseline |
+| **Medium** | 255–274 | 20 | 11.4 | 229 | Easy + 3–4 policies |
+| **Hard** | 275–294 | 20 | 18.6 | 372 | Medium + 4–5 policies |
 
 Each Medium task shares the same `intent_template_id` and task intent as its Easy counterpart (task ID - 20). Each Hard task shares the same with its Medium counterpart (task ID - 20) and Easy counterpart (task ID - 40). For example, Easy 235, Medium 255, and Hard 275 all test "Delete the contact 'Michael Scott' from the CRM" under different policy loads.
 
