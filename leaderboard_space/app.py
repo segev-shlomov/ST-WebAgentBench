@@ -1276,10 +1276,16 @@ def load_submissions() -> list[dict]:
 
 
 def save_submission(submission: dict) -> None:
-    """Append a submission to the JSONL data file."""
+    """Append a submission to the JSONL data file (with file locking)."""
+    import fcntl
     SUBMISSIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(SUBMISSIONS_FILE, "a") as f:
-        f.write(json.dumps(submission) + "\n")
+        fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+        try:
+            f.write(json.dumps(submission) + "\n")
+            f.flush()
+        finally:
+            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
 
 
 # ---------------------------------------------------------------------------
@@ -1845,25 +1851,67 @@ def process_upload(file):
     )
 
 
-def admin_remove_submission(agent_id: str, session_token: str):
-    """Remove a submission by agent_id (session-gated)."""
+def admin_remove_submission(agent_id: str, run_id: str, session_token: str):
+    """Remove submission(s) by agent_id and/or run_id (session-gated).
+
+    If both agent_id and run_id are provided, removes only the submission
+    matching BOTH criteria. If only agent_id is provided, lists all matching
+    submissions and their run_ids so the admin can target a specific one.
+    """
     if not _verify_session(session_token):
         return "Session expired — please log in again."
-    if not agent_id or not agent_id.strip():
-        return "Please enter an agent_id."
+
+    agent_id = (agent_id or "").strip()
+    run_id = (run_id or "").strip()
+
+    if not agent_id and not run_id:
+        return "Please enter an agent_id or run_id (or both)."
 
     subs = load_submissions()
-    filtered = [s for s in subs if s.get("metadata", {}).get("agent_id") != agent_id.strip()]
 
-    if len(filtered) == len(subs):
-        return f"No submission found with agent_id '{agent_id}'."
+    def matches(s):
+        s_agent = s.get("metadata", {}).get("agent_id", "")
+        s_run = s.get("integrity", {}).get("run_id", "")
+        if agent_id and run_id:
+            return s_agent == agent_id and s_run == run_id
+        if run_id:
+            return s_run == run_id
+        return s_agent == agent_id
 
+    matching = [s for s in subs if matches(s)]
+
+    if not matching:
+        return f"No submission found matching agent_id='{agent_id}', run_id='{run_id}'."
+
+    # If multiple matches by agent_id alone, list them so admin can pick one
+    if len(matching) > 1 and not run_id:
+        lines = [f"Found {len(matching)} submissions for '{agent_id}'. "
+                 f"Specify a run_id to remove a specific one:\n"]
+        for s in matching:
+            s_run = s.get("integrity", {}).get("run_id", "?")
+            s_date = s.get("submission_date", "?")[:10]
+            s_cup = s.get("results", {}).get("metrics", {}).get("CuP", "?")
+            lines.append(f"  run_id={s_run[:12]}...  date={s_date}  CuP={s_cup}")
+        lines.append(f"\nOr leave run_id empty to remove ALL {len(matching)}.")
+        return "\n".join(lines)
+
+    filtered = [s for s in subs if not matches(s)]
     removed = len(subs) - len(filtered)
-    SUBMISSIONS_FILE.write_text(
-        "\n".join(json.dumps(s) for s in filtered) + ("\n" if filtered else "")
-    )
-    _log_admin_action("remove_submission", f"Removed {removed} submission(s) with agent_id={agent_id.strip()}")
-    return f"Removed {removed} submission(s) with agent_id '{agent_id}'."
+
+    import fcntl
+    with open(SUBMISSIONS_FILE, "w") as f:
+        fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+        try:
+            f.write("\n".join(json.dumps(s) for s in filtered) + ("\n" if filtered else ""))
+            f.flush()
+        finally:
+            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+
+    detail = f"agent_id={agent_id}" if agent_id else ""
+    if run_id:
+        detail += f"{', ' if detail else ''}run_id={run_id}"
+    _log_admin_action("remove_submission", f"Removed {removed} submission(s): {detail}")
+    return f"Removed {removed} submission(s) ({detail})."
 
 
 def admin_build_key_dashboard(session_token: str):
@@ -2734,13 +2782,14 @@ contact details.
                                     f"*Session active. All actions below are authenticated.*")
 
                         with gr.Accordion("Remove Submission", open=True):
-                            admin_agent_id = gr.Textbox(label="Agent ID to remove")
+                            admin_agent_id = gr.Textbox(label="Agent ID (matches all if run_id empty)")
+                            admin_run_id = gr.Textbox(label="Run ID (optional — target a specific submission)")
                             admin_btn = gr.Button("Remove Submission", variant="stop")
-                            admin_result = gr.Textbox(label="Result", interactive=False, lines=3)
+                            admin_result = gr.Textbox(label="Result", interactive=False, lines=8)
 
                             admin_btn.click(
                                 admin_remove_submission,
-                                inputs=[admin_agent_id, admin_session],
+                                inputs=[admin_agent_id, admin_run_id, admin_session],
                                 outputs=[admin_result],
                                 api_name=False,
                             )

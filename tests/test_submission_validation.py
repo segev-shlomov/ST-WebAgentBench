@@ -569,6 +569,71 @@ class TestHMACSigning:
 
 
 # ---------------------------------------------------------------------------
+# Deploy sync checks — catch stale data before deploy
+# ---------------------------------------------------------------------------
+
+
+class TestDeploySync:
+    """Ensure leaderboard_space data files are in sync with canonical sources."""
+
+    def test_task_data_in_sync(self):
+        """leaderboard_space/data/test.raw.json must match stwebagentbench/test.raw.json."""
+        import hashlib
+
+        canonical = TESTS_DIR.parent / "stwebagentbench" / "test.raw.json"
+        space_copy = TESTS_DIR.parent / "leaderboard_space" / "data" / "test.raw.json"
+
+        if not space_copy.exists():
+            pytest.skip("leaderboard_space/data/test.raw.json not found")
+
+        def sha256(path):
+            h = hashlib.sha256()
+            with open(path, "rb") as f:
+                for chunk in iter(lambda: f.read(8192), b""):
+                    h.update(chunk)
+            return h.hexdigest()
+
+        assert sha256(canonical) == sha256(space_copy), (
+            "leaderboard_space/data/test.raw.json is out of sync with "
+            "stwebagentbench/test.raw.json. Run: python scripts/deploy_space.py --check"
+        )
+
+    def test_canonical_hashes_up_to_date(self):
+        """canonical_hashes.json must match current source file hashes."""
+        import hashlib
+
+        hashes_file = TESTS_DIR.parent / "leaderboard_space" / "data" / "canonical_hashes.json"
+        if not hashes_file.exists():
+            pytest.skip("canonical_hashes.json not found")
+
+        with open(hashes_file) as f:
+            stored = json.load(f).get("1.0.0", {})
+
+        artifacts = {
+            "evaluators_sha256": "stwebagentbench/evaluation_harness/evaluators.py",
+            "task_config_sha256": "stwebagentbench/test.raw.json",
+            "custom_env_sha256": "stwebagentbench/browser_env/custom_env.py",
+            "helper_functions_sha256": "stwebagentbench/evaluation_harness/helper_functions.py",
+        }
+        root = TESTS_DIR.parent
+        for key, rel_path in artifacts.items():
+            path = root / rel_path
+            if not path.exists():
+                continue
+            h = hashlib.sha256()
+            with open(path, "rb") as f:
+                for chunk in iter(lambda: f.read(8192), b""):
+                    h.update(chunk)
+            actual = h.hexdigest()
+            assert stored.get(key) == actual, (
+                f"Canonical hash stale for {key}: "
+                f"stored={stored.get(key, 'missing')[:16]}..., "
+                f"actual={actual[:16]}... "
+                f"Run: python scripts/deploy_space.py --check"
+            )
+
+
+# ---------------------------------------------------------------------------
 # Gradio app UI validation (lightweight)
 # ---------------------------------------------------------------------------
 

@@ -79,13 +79,16 @@ def _load_benchmark_config() -> tuple:
         if tier and group:
             tier_config.setdefault(group, {}).setdefault(tier, []).append(t["task_id"])
 
+    # Extract actual task IDs (don't assume 0..N-1)
+    task_ids = sorted(t["task_id"] for t in tasks)
+
     logger.info(
         "Loaded benchmark config: %d tasks, %d policies, %d dimensions, "
         "%d web apps, %d tier groups",
         task_count, policy_count, len(safety_dims),
         len(web_applications), len(tier_config),
     )
-    return task_count, policy_count, safety_dims, dim_display, web_applications, tier_config
+    return task_count, policy_count, safety_dims, dim_display, web_applications, tier_config, task_ids
 
 
 (
@@ -95,6 +98,7 @@ def _load_benchmark_config() -> tuple:
     DIMENSION_DISPLAY,
     WEB_APPLICATIONS,
     TIER_CONFIG,
+    EXPECTED_TASK_IDS,
 ) = _load_benchmark_config()
 
 

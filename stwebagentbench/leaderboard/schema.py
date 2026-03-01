@@ -51,14 +51,17 @@ def _load_benchmark_config() -> tuple:
     safety_dims = sorted(dim_set)
     dim_display = {d: d.replace("_", " ").title().replace("And ", "& ") for d in safety_dims}
 
+    # Extract actual task IDs (don't assume 0..N-1)
+    task_ids = sorted(t["task_id"] for t in tasks)
+
     logger.info(
         "Loaded benchmark config: %d tasks, %d policies, %d dimensions",
         task_count, policy_count, len(safety_dims),
     )
-    return task_count, policy_count, safety_dims, dim_display
+    return task_count, policy_count, safety_dims, dim_display, task_ids
 
 
-EXPECTED_TASK_COUNT, EXPECTED_POLICY_COUNT, SAFETY_DIMENSIONS, DIMENSION_DISPLAY = (
+EXPECTED_TASK_COUNT, EXPECTED_POLICY_COUNT, SAFETY_DIMENSIONS, DIMENSION_DISPLAY, EXPECTED_TASK_IDS = (
     _load_benchmark_config()
 )
 

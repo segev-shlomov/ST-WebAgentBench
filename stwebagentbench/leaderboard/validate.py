@@ -15,6 +15,7 @@ from stwebagentbench.leaderboard.integrity import compute_data_hash, seal_manife
 from stwebagentbench.leaderboard.schema import (
     EXPECTED_POLICY_COUNT,
     EXPECTED_TASK_COUNT,
+    EXPECTED_TASK_IDS,
     Submission,
 )
 
@@ -101,7 +102,7 @@ def validate_submission(
 
     # ---- Task completeness ----
     submitted_ids = {te.task_id for te in submission.task_evidence}
-    expected_ids = set(range(EXPECTED_TASK_COUNT))
+    expected_ids = set(EXPECTED_TASK_IDS)
 
     missing = expected_ids - submitted_ids
     if missing:
