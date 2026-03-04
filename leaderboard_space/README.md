@@ -15,7 +15,7 @@ tags:
   - safety
   - ICLR
 datasets:
-  - dolev31/st-webagentbench
+  - ST-WebAgentBench/st-webagentbench
 short_description: "Safety & Trustworthiness Leaderboard for Web Agents"
 ---
 
@@ -56,7 +56,7 @@ python -m stwebagentbench.leaderboard.submit \
 ## Links
 
 - [Paper (arXiv)](https://arxiv.org/abs/2410.06703)
-- [Dataset (HuggingFace)](https://huggingface.co/datasets/dolev31/st-webagentbench)
+- [Dataset (HuggingFace)](https://huggingface.co/datasets/ST-WebAgentBench/st-webagentbench)
 - [GitHub Repository](https://github.com/segev-shlomov/ST-WebAgentBench)
 - [Project Website](https://sites.google.com/view/st-webagentbench/home)
 

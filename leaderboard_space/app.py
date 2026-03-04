@@ -747,7 +747,7 @@ ADMIN_AUDIT_FILE = _APP_DIR / "data" / "admin_audit.jsonl"  # override relative 
 # Data persistence — CommitScheduler auto-syncs data/ to HF dataset repo
 # ---------------------------------------------------------------------------
 
-_DATA_REPO_ID = "dolev31/st-webagentbench-data"
+_DATA_REPO_ID = "ST-WebAgentBench/st-webagentbench-data"
 _DATA_DIR = _APP_DIR / "data"
 _scheduler: CommitScheduler | None = None
 _PERSISTENCE_ENABLED = False
@@ -2357,7 +2357,7 @@ def create_app() -> gr.Blocks:
             </p>
             <div class="nav-links">
                 <a href="https://arxiv.org/abs/2410.06703" target="_blank">&#128196; Paper</a>
-                <a href="https://huggingface.co/datasets/dolev31/st-webagentbench" target="_blank">&#128202; Dataset</a>
+                <a href="https://huggingface.co/datasets/ST-WebAgentBench/st-webagentbench" target="_blank">&#128202; Dataset</a>
                 <a href="https://github.com/segev-shlomov/ST-WebAgentBench" target="_blank">&#128187; GitHub</a>
                 <a href="https://sites.google.com/view/st-webagentbench/home" target="_blank">&#127760; Website</a>
             </div>
@@ -2925,7 +2925,7 @@ contact details.
                     "```\n\n"
                     "### Links\n"
                     "- [arXiv Paper](https://arxiv.org/abs/2410.06703)\n"
-                    "- [HuggingFace Dataset](https://huggingface.co/datasets/dolev31/st-webagentbench)\n"
+                    "- [HuggingFace Dataset](https://huggingface.co/datasets/ST-WebAgentBench/st-webagentbench)\n"
                     "- [GitHub Repository](https://github.com/segev-shlomov/ST-WebAgentBench)\n"
                     "- [Project Website](https://sites.google.com/view/st-webagentbench/home)"
                 )

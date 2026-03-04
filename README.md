@@ -37,10 +37,10 @@ configs:
     <a href="https://arxiv.org/abs/2410.06703">
       <img src="https://img.shields.io/badge/arXiv-2410.06703-B31B1B.svg" alt="arXiv Paper"/>
     </a>
-<a href="https://huggingface.co/datasets/dolev31/st-webagentbench">
+<a href="https://huggingface.co/datasets/ST-WebAgentBench/st-webagentbench">
   <img src="https://img.shields.io/badge/HuggingFace-Dataset-orange?logo=huggingface&logoColor=FFD21F&labelColor=555" alt="Hugging Face Dataset"/>
 </a>
-<a href="https://huggingface.co/spaces/dolev31/st-webagentbench-leaderboard">
+<a href="https://huggingface.co/spaces/ST-WebAgentBench/st-webagentbench-leaderboard">
   <img src="https://img.shields.io/badge/🏆_Leaderboard-Live-blueviolet" alt="Leaderboard"/>
 </a>
     <a href="https://github.com/segev-shlomov/ST-WebAgentBench">
@@ -568,11 +568,11 @@ stwebagentbench/
 
 ## Leaderboard
 
-**[View the live leaderboard on HuggingFace Spaces](https://huggingface.co/spaces/dolev31/st-webagentbench-leaderboard)**
+**[View the live leaderboard on HuggingFace Spaces](https://huggingface.co/spaces/ST-WebAgentBench/st-webagentbench-leaderboard)**
 
 ### Submitting Results
 
-**Step 1: Get your signing key** — go to the [leaderboard](https://huggingface.co/spaces/dolev31/st-webagentbench-leaderboard), click the **Get Signing Key** tab, and enter your email and team name. Set the key as an environment variable:
+**Step 1: Get your signing key** — go to the [leaderboard](https://huggingface.co/spaces/ST-WebAgentBench/st-webagentbench-leaderboard), click the **Get Signing Key** tab, and enter your email and team name. Set the key as an environment variable:
 
 ```bash
 export ST_BENCH_SIGNING_KEY="<your-key>"
@@ -613,7 +613,7 @@ python -m stwebagentbench.leaderboard.submit \
     --output submission.json
 ```
 
-**Step 4: Upload** — go to the [leaderboard](https://huggingface.co/spaces/dolev31/st-webagentbench-leaderboard), click the **Submit** tab, and upload your `submission.json`.
+**Step 4: Upload** — go to the [leaderboard](https://huggingface.co/spaces/ST-WebAgentBench/st-webagentbench-leaderboard), click the **Submit** tab, and upload your `submission.json`.
 
 > **Important:** Use the same email for `--contact-email` and the one you used to generate your signing key.
 

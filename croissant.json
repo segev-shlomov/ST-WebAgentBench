@@ -9,8 +9,8 @@
   "name": "st-webagentbench",
   "description": "A benchmark for evaluating safety and trustworthiness in web agents executing enterprise workflows across Gitlab, shopping_admin, and SuiteCRM using BrowserGym.",
   "license": "https://creativecommons.org/licenses/by/4.0/",
-  "url": "https://huggingface.co/datasets/dolev31/st-webagentbench",
-  "identifier": "https://huggingface.co/datasets/dolev31/st-webagentbench",
+  "url": "https://huggingface.co/datasets/ST-WebAgentBench/st-webagentbench",
+  "identifier": "https://huggingface.co/datasets/ST-WebAgentBench/st-webagentbench",
   "version": "1.0",
   "keywords": [
     "web agents",
