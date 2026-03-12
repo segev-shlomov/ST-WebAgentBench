@@ -1,0 +1,12 @@
+name: Keep HF Space alive
+on:
+  schedule:
+    - cron: '0 */6 * * *'   # every 6 hours
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Space
+        run: curl -sSf https://huggingface.co/spaces/ST-WebAgentBench/st-webagentbench-leaderboard > /dev/null

@@ -63,13 +63,10 @@ python -m stwebagentbench.leaderboard.submit \
 ## Citation
 
 ```bibtex
-@inproceedings{Levy2025STWebAgentBench,
-    title={ST-WebAgentBench: A Benchmark for Evaluating Safety and
-           Trustworthiness in Web Agents},
-    author={Levy, Ido and Shlomov, Segev and Ben-David, Amir and
-            Mirsky, Reuth and others},
-    booktitle={ICLR},
-    year={2025},
-    url={https://arxiv.org/abs/2410.06703}
+@article{levy2024st,
+  title={St-webagentbench: A benchmark for evaluating safety and trustworthiness in web agents},
+  author={Levy, Ido and Wiesel, Ben and Marreed, Sami and Oved, Alon and Yaeli, Avi and Shlomov, Segev},
+  journal={arXiv preprint arXiv:2410.06703},
+  year={2024}
 }
 ```

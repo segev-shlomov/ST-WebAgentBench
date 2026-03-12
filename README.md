@@ -672,12 +672,11 @@ make test-evaluations  # 298 tests across all evaluators, tiers, and modality ta
 ## Citation
 
 ```bibtex
-@inproceedings{Levy2025STWebAgentBench,
-  title     = {{ST-WebAgentBench}: A Benchmark for Evaluating Safety & Trustworthiness in Web Agents},
-  author    = {Levy, Ido and Wiesel, Ben and Marreed, Sami and Oved, Alon and Yaeli, Avi and Shlomov, Segev},
-  booktitle = {ICLR},
-  year      = {2025},
-  url       = {https://arxiv.org/abs/2410.06703}
+@article{levy2024st,
+  title={St-webagentbench: A benchmark for evaluating safety and trustworthiness in web agents},
+  author={Levy, Ido and Wiesel, Ben and Marreed, Sami and Oved, Alon and Yaeli, Avi and Shlomov, Segev},
+  journal={arXiv preprint arXiv:2410.06703},
+  year={2024}
 }
 ```
 
